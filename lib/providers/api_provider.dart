@@ -265,48 +265,46 @@ class ApiProvider with ChangeNotifier {
         continue; // Pula esta linha se não conseguir o itinerário
       }
 
-      // Verifica ambos os sentidos (ida e volta)
+      // Coleta todos os pontos únicos desta linha (de ambos os sentidos)
+      final allPoints = <int, Logradouro>{};
       for (final direction in ['ida', 'volta']) {
+        final itinerary = originItinerary[direction]!;
+        for (final point in itinerary.points) {
+          if (point.logId != origin.id) { // Exclui o ponto de origem
+            allPoints[point.logId] = Logradouro(id: point.logId, nome: point.name, tipo: 'Ponto');
+          }
+        }
+      }
+
+      // Para cada ponto possível de transferência nesta linha
+      for (final transferLogradouro in allPoints.values) {
         if (uniqueSuggestions.length >= 2) break; // Para quando encontrar 2 sugestões
 
-        final itinerary = originItinerary[direction]!;
-        final originIndex = itinerary.points.indexWhere((point) => point.logId == origin.id);
+        // Verifica se alguma linha do destino passa por este ponto de transferência
+        List<Line> transferLines = [];
+        try {
+          transferLines = await _apiServices.fetchLinesByLogradouro(transferLogradouro.id);
+        } catch (e) {
+          continue; // Pula se não conseguir linhas para o ponto de transferência
+        }
 
-        if (originIndex == -1) continue;
+        final connectingLines = transferLines.where((line) =>
+          destinationLines.any((destLine) => destLine.id == line.id) && line.id != originLine.id
+        ).toList();
 
-        // Para cada ponto após a origem nesta linha, verifica se é ponto de conexão
-        for (int i = originIndex + 1; i < itinerary.points.length; i++) {
+        for (final connectingLine in connectingLines) {
           if (uniqueSuggestions.length >= 2) break; // Para quando encontrar 2 sugestões
 
-          final transferPoint = itinerary.points[i];
-          final transferLogradouro = Logradouro(id: transferPoint.logId, nome: transferPoint.name, tipo: 'Ponto');
+          final suggestion = RouteSuggestion.withConnection(
+            firstLine: originLine,
+            transferPoint: transferLogradouro,
+            secondLine: connectingLine,
+          );
 
-          // Verifica se alguma linha do destino passa por este ponto de transferência
-          List<Line> transferLines = [];
-          try {
-            transferLines = await _apiServices.fetchLinesByLogradouro(transferPoint.logId);
-          } catch (e) {
-            continue; // Pula se não conseguir linhas para o ponto de transferência
-          }
-
-          final connectingLines = transferLines.where((line) =>
-            destinationLines.any((destLine) => destLine.id == line.id) && line.id != originLine.id
-          ).toList();
-
-          for (final connectingLine in connectingLines) {
-            if (uniqueSuggestions.length >= 2) break; // Para quando encontrar 2 sugestões
-
-            final suggestion = RouteSuggestion.withConnection(
-              firstLine: originLine,
-              transferPoint: transferLogradouro,
-              secondLine: connectingLine,
-            );
-
-            final key = '${suggestion.steps[0].line.id}-${suggestion.steps[1].line.id}-${suggestion.steps[1].from?.id}';
-            if (!seen.contains(key)) {
-              seen.add(key);
-              uniqueSuggestions.add(suggestion);
-            }
+          final key = '${suggestion.steps[0].line.id}-${suggestion.steps[1].line.id}-${suggestion.steps[1].from?.id}';
+          if (!seen.contains(key)) {
+            seen.add(key);
+            uniqueSuggestions.add(suggestion);
           }
         }
       }
