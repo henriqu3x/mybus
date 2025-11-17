@@ -66,6 +66,25 @@ class RouteSuggestion {
     );
   }
 
+  /// Cria uma sugestão de rota com duas conexões
+  factory RouteSuggestion.withTwoConnections({
+    required Line firstLine,
+    required Logradouro firstTransferPoint,
+    required Line secondLine,
+    required Logradouro secondTransferPoint,
+    required Line thirdLine,
+  }) {
+    return RouteSuggestion(
+      description: 'Pegue ${firstLine.numeroNome} até ${firstTransferPoint.nome}, depois ${secondLine.numeroNome} até ${secondTransferPoint.nome}, depois ${thirdLine.numeroNome} até destino',
+      steps: [
+        RouteStep(line: firstLine, from: null, to: firstTransferPoint),
+        RouteStep(line: secondLine, from: firstTransferPoint, to: secondTransferPoint),
+        RouteStep(line: thirdLine, from: secondTransferPoint, to: null),
+      ],
+      connections: 2,
+    );
+  }
+
   @override
   String toString() {
     return 'RouteSuggestion{description: $description, connections: $connections, steps: $steps}';

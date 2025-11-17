@@ -114,8 +114,8 @@ class _MapViewScreenState extends State<MapViewScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _centerOnRoute,
-        child: const Icon(Icons.center_focus_strong),
         tooltip: 'Centralizar na rota',
+        child: const Icon(Icons.center_focus_strong),
       ),
     );
   }
@@ -159,11 +159,11 @@ class _MapViewScreenState extends State<MapViewScreen> {
                 final line = lines[index];
                 return ListTile(
                   leading: CircleAvatar(
+                    backgroundColor: Colors.blue,
                     child: Text(
                       line.id.toString(),
                       style: const TextStyle(color: Colors.white),
                     ),
-                    backgroundColor: Colors.blue,
                   ),
                   title: Text(line.name),
                   subtitle: Text('${line.numeroNome} - ${line.tipoLinha}'),

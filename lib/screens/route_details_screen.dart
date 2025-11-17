@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../models/route_suggestion.dart';
-import '../models/line.dart';
 import 'itinerary_details_screen.dart';
 
 class RouteDetailsScreen extends StatelessWidget {

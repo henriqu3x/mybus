@@ -47,3 +47,9 @@
 - [x] Refine UI/UX based on testing
 - [x] Fix linting issues (removed unused imports, fixed deprecated XML API, reordered widget parameters, added mounted checks)
 - [x] Fix route planner location loading issue
+
+## 8. Fix Route Finding Logic
+- [ ] Modify _findDirectRoutes in api_provider.dart to use itinerary-based matching instead of logradouro IDs
+- [ ] Modify _findRoutesWithConnection to use itinerary-based matching for connections
+- [ ] Test the fix with the example route (Germano Frank to Vinte quatro de maio)
+- [ ] Ensure performance is acceptable (consider caching or optimization)

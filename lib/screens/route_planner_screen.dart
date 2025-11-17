@@ -406,7 +406,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Selecionar ${isOrigin ? 'Origem' : 'Destino'}' + (filteredLogradouros.isNotEmpty ? ' (${filteredLogradouros.length})' : ''),
+                        'Selecionar ${isOrigin ? 'Origem' : 'Destino'}${filteredLogradouros.isNotEmpty ? ' (${filteredLogradouros.length})' : ''}',
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
