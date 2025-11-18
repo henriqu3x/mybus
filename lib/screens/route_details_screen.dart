@@ -55,7 +55,7 @@ class RouteDetailsScreen extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Botão para ver itinerários detalhados
-            if (routeSuggestion.steps.length == 1) ...[
+            if (routeSuggestion.steps.length == 1 && routeSuggestion.steps[0].line != null) ...[
               ElevatedButton.icon(
                 icon: const Icon(Icons.directions_bus),
                 label: const Text('Ver Itinerário Completo'),
@@ -63,7 +63,7 @@ class RouteDetailsScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ItineraryDetailsScreen(line: routeSuggestion.steps[0].line),
+                      builder: (context) => ItineraryDetailsScreen(line: routeSuggestion.steps[0].line!),
                     ),
                   );
                 },
@@ -98,14 +98,14 @@ class RouteDetailsScreen extends StatelessWidget {
         Card(
           margin: const EdgeInsets.only(bottom: 16),
           child: InkWell(
-            onTap: () {
+            onTap: step.line != null ? () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ItineraryDetailsScreen(line: step.line),
+                  builder: (context) => ItineraryDetailsScreen(line: step.line!),
                 ),
               );
-            },
+            } : null,
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -124,21 +124,39 @@ class RouteDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 8),
 
                   // Linha
-                  Row(
-                    children: [
-                      const Icon(Icons.directions_bus, color: Colors.blue),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          step.line.numeroNome,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                  if (step.line != null) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.directions_bus, color: Colors.blue),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            step.line!.numeroNome,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ] else ...[
+                    const Row(
+                      children: [
+                        Icon(Icons.directions_walk, color: Colors.blue),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Caminhada',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 8),
 
                   // Pontos de partida e chegada
@@ -194,13 +212,23 @@ class RouteDetailsScreen extends StatelessWidget {
                   const SizedBox(height: 8),
 
                   // Tipo de linha
-                  Text(
-                    'Tipo: ${step.line.tipoLinha}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
+                  if (step.line != null) ...[
+                    Text(
+                      'Tipo: ${step.line!.tipoLinha}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
                     ),
-                  ),
+                  ] else ...[
+                    const Text(
+                      'Tipo: Caminhada',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
 
                   // Toque para ver detalhes
                   const SizedBox(height: 8),

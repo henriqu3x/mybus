@@ -1,55 +1,34 @@
-# TODO List for MyBus Flutter App
+# TODO: Fix Compilation Errors in Flutter Project
 
-## 1. Update Dependencies
-- [x] Add http, google_maps_flutter, flutter_local_notifications, shared_preferences, provider to pubspec.yaml
-- [x] Run flutter pub get
+## Information Gathered
+- **PriorityQueue**: Used in `api_provider.dart` but import is incorrect. Should import from `package:collection/collection.dart` instead of `dart:collection`.
+- **Line Model**: Has `name` field, not `nome`. Constructor uses `name`, but some usages in `api_provider.dart` incorrectly use `nome`.
+- **HaversineCalculator**: Used in `route_suggestion.dart` but import is missing.
+- **RouteSuggestion Getters**: Missing `steps` (alias for `segments`), `connections` (alias for `transferCount`), and `description` (new getter needed).
+- **fetchItinerary Method**: Missing in `ApiProvider`, but called in screens.
+- **Other**: Constructor calls for `Line` need to use `name` instead of `nome`.
 
-## 2. Create Data Models
-- [x] Create lib/models/line.dart
-- [x] Create lib/models/itinerary.dart
-- [x] Create lib/models/schedule.dart
-- [x] Create lib/models/logradouro.dart
+## Plan
+1. Update imports in `lib/providers/api_provider.dart`:
+   - Change `import 'dart:collection';` to `import 'package:collection/collection.dart';`
+2. Add missing import in `lib/models/route_suggestion.dart`:
+   - Add `import '../services/haversine_calculator.dart';`
+3. Add getters to `RouteSuggestion` class in `lib/models/route_suggestion.dart`:
+   - `List<RouteSegment> get steps => segments;`
+   - `int get connections => transferCount;`
+   - `String get description => 'Rota com ${transferCount} conexão${transferCount != 1 ? 'ões' : ''}';`
+4. Add `fetchItinerary` method to `ApiProvider` in `lib/providers/api_provider.dart`:
+   - `Future<Map<String, Itinerary>> fetchItinerary(int id) async => await _fetchItineraryCached(id);`
+5. Fix `Line` constructor calls in `api_provider.dart`:
+   - Change `nome:` to `name:` in `Line` instantiations.
+6. Fix field access in `api_provider.dart`:
+   - Change `newLine?.nome` to `newLine?.name`.
 
-## 3. Create API Service
-- [x] Create lib/services/api_service.dart for fetching data from APIs (linhas, itinerario, horarios, logradouros, LinhasDologradouro)
+## Dependent Files to Edit
+- `lib/providers/api_provider.dart`
+- `lib/models/route_suggestion.dart`
 
-## 4. Set Up App Structure
-- [x] Update lib/main.dart to set up app with Provider and navigation
-- [x] Create lib/screens/home_screen.dart
-- [x] Create lib/screens/lines_list_screen.dart
-- [x] Create lib/screens/itinerary_details_screen.dart
-- [x] Create lib/screens/schedule_screen.dart
-- [x] Create lib/screens/route_planner_screen.dart
-- [x] Create lib/screens/favorites_screen.dart
-- [x] Create lib/screens/map_view_screen.dart
-
-## 5. Implement State Management
-- [x] Create lib/providers/app_provider.dart for managing app state
-
-## 6. Implement UI and Features
-- [x] Implement Home screen with navigation to other screens
-- [x] Implement Lines List screen with API integration
-- [x] Implement Itinerary Details screen
-- [x] Implement Schedule screen with date selection
-- [x] Implement Route Planner screen with origin/destination selection
-- [x] Implement Favorites screen with local storage
-- [x] Implement Map View screen with Google Maps integration
-- [x] Update models to match XML API response structure
-- [x] Update API service to parse XML responses
-- [x] Update screens to use new model fields
-- [ ] Add notifications for alerts
-
-## 7. Testing and Refinement
-- [x] Test API integrations
-- [x] Test navigation and UI
-- [x] Test map functionality
-- [x] Test notifications
-- [x] Refine UI/UX based on testing
-- [x] Fix linting issues (removed unused imports, fixed deprecated XML API, reordered widget parameters, added mounted checks)
-- [x] Fix route planner location loading issue
-
-## 8. Fix Route Finding Logic
-- [ ] Modify _findDirectRoutes in api_provider.dart to use itinerary-based matching instead of logradouro IDs
-- [ ] Modify _findRoutesWithConnection to use itinerary-based matching for connections
-- [ ] Test the fix with the example route (Germano Frank to Vinte quatro de maio)
-- [ ] Ensure performance is acceptable (consider caching or optimization)
+## Followup Steps
+- Run `flutter analyze` to check for remaining errors.
+- Run `flutter build` to ensure the project compiles.
+- Test the app to verify functionality.

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'dart:collection'; // Para PriorityQueue do Dijkstra
+import 'package:collection/collection.dart'; // Para PriorityQueue do Dijkstra
 import 'dart:async';
 
 // Seus imports
@@ -14,6 +14,8 @@ import '../models/route_suggestion.dart';
 import '../services/nominatim_service.dart';
 import '../services/haversine_calculator.dart';
 import '../models/route_node.dart'; // Classe simples para o nó do grafo (Logradouro + Custo)
+// Add this import at the top of api_provider.dart
+
 // import '../models/route_result.dart'; // Usado para mapeamento final, mas não essencial aqui.
 
 // Constantes
@@ -267,7 +269,7 @@ class ApiProvider with ChangeNotifier {
             cost: newCost,
             predecessor: current,
             lineId: lineId,
-            lineName: newLine?.nome ?? 'Linha $lineId',
+            lineName: newLine?.name ?? 'Linha $lineId',
           );
 
           priorityQueue.add(nextNode);
@@ -335,9 +337,9 @@ class ApiProvider with ChangeNotifier {
     final lastLineNode = orderedPath.lastWhere((n) => n.lineId != -1, orElse: () => orderedPath.last);
 
     return RouteSuggestion.withConnection(
-        firstLine: _allLinesCache?.firstWhere((l) => l.id == firstLineNode.lineId, orElse: () => Line(id: -1, nome: 'Acesso a Pé', numero: 0, numeroNome: '0', tipoLinha: 'Acesso')),
+        firstLine: _allLinesCache?.firstWhere((l) => l.id == firstLineNode.lineId, orElse: () => Line(id: -1, name: 'Acesso a Pé', numeroNome: '0', tipoLinha: 'Acesso')),
         transferPoint: _logradourosMap[lastLineNode.logId] ?? destination, // Ponto de transbordo final
-        secondLine: _allLinesCache?.firstWhere((l) => l.id == lastLineNode.lineId, orElse: () => Line(id: -1, nome: 'Saída a Pé', numero: 0, numeroNome: '0', tipoLinha: 'Saída')),
+        secondLine: _allLinesCache?.firstWhere((l) => l.id == lastLineNode.lineId, orElse: () => Line(id: -1, name: 'Saída a Pé', numeroNome: '0', tipoLinha: 'Saída')),
         totalCost: finalStopNode.cost + finalWalkMinutes
     );
   }
@@ -377,6 +379,8 @@ class ApiProvider with ChangeNotifier {
     _itineraryCache[id] = result;
     return result;
   }
+
+  Future<Map<String, Itinerary>> fetchItinerary(int id) async => await _fetchItineraryCached(id);
 
   Future<List<Line>> _fetchLinesByLogradouroCached(int id) async {
     if (_linesByLogradouroCache.containsKey(id)) {

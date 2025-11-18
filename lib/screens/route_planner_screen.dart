@@ -175,12 +175,12 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                 ),
                 title: Text(
                   suggestion.steps.length == 1
-                      ? 'Rota Direta - ${suggestion.steps[0].line.name}'
-                      : 'Com troca - ${suggestion.steps[0].line.name} → ${suggestion.steps[1].line.name}',
+                      ? 'Rota Direta - ${suggestion.steps[0].line?.name ?? 'Caminhada'}'
+                      : 'Com troca - ${suggestion.steps[0].line?.name ?? 'Caminhada'} → ${suggestion.steps[1].line?.name ?? 'Caminhada'}',
                   style: const TextStyle(fontWeight: FontWeight.w500),
                 ),
                 subtitle: suggestion.steps.length == 1
-                    ? Text('Linha: ${suggestion.steps[0].line.numeroNome}')
+                    ? Text('Linha: ${suggestion.steps[0].line?.numeroNome ?? 'Caminhada'}')
                     : Text('Troca em: ${suggestion.steps[1].from?.nome ?? 'Ponto'}'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
@@ -582,9 +582,18 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           if (a.connections != b.connections) {
             return a.connections.compareTo(b.connections);
           }
-          final typeCompare = a.steps[0].line.tipoLinha.compareTo(b.steps[0].line.tipoLinha);
-          if (typeCompare != 0) return typeCompare;
-          return a.steps[0].line.name.compareTo(b.steps[0].line.name);
+          final aLine = a.steps[0].line;
+          final bLine = b.steps[0].line;
+          if (aLine != null && bLine != null) {
+            final typeCompare = aLine.tipoLinha.compareTo(bLine.tipoLinha);
+            if (typeCompare != 0) return typeCompare;
+            return aLine.name.compareTo(bLine.name);
+          } else if (aLine != null) {
+            return -1; // a comes first if it has a line
+          } else if (bLine != null) {
+            return 1; // b comes first if it has a line
+          }
+          return 0; // both null, equal
         });
 
         if (suggestions.isEmpty) {

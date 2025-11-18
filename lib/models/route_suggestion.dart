@@ -1,92 +1,95 @@
 import '../models/line.dart';
 import '../models/logradouro.dart';
+import '../services/haversine_calculator.dart';
 
 /// Representa uma etapa de uma rota
-class RouteStep {
-  /// Linha da etapa
-  final Line line;
-
-  /// Ponto de partida da etapa (null para primeira etapa)
+class RouteSegment {
+  final String type; // 'walking' or 'bus'
+  final String description;
+  final double distance; // in km
+  final double time; // in minutes
+  final Line? line;
   final Logradouro? from;
-
-  /// Ponto de chegada da etapa (null para última etapa)
   final Logradouro? to;
 
-  const RouteStep({
-    required this.line,
+  RouteSegment({
+    required this.type,
+    required this.description,
+    required this.distance,
+    required this.time,
+    this.line,
     this.from,
     this.to,
   });
-
-  @override
-  String toString() {
-    return 'RouteStep{line: ${line.numeroNome}, from: ${from?.nome}, to: ${to?.nome}}';
-  }
 }
 
-/// Representa uma sugestão de rota, que pode ser direta ou com conexões
 class RouteSuggestion {
-  /// Descrição da rota (ex: "Pegue linha 51 até Terminal Parangaba, depois linha 52 até destino")
-  final String description;
+  final List<RouteSegment> segments;
+  final double totalDistance;
+  final double totalTime;
+  final int transferCount;
 
-  /// Lista de etapas da rota
-  final List<RouteStep> steps;
-
-  /// Número de conexões (0 para direta)
-  final int connections;
-
-  const RouteSuggestion({
-    required this.description,
-    required this.steps,
-    required this.connections,
+  RouteSuggestion({
+    required this.segments,
+    required this.totalDistance,
+    required this.totalTime,
+    required this.transferCount,
   });
 
-  /// Cria uma sugestão de rota direta
-  factory RouteSuggestion.direct(Line line) {
+  // Factory for walking-only route
+  factory RouteSuggestion.walkingOnly(double distanceKm) {
+    final time = HaversineCalculator.distanceToWalkingTimeMinutes(distanceKm);
     return RouteSuggestion(
-      description: 'Rota direta: ${line.numeroNome}',
-      steps: [RouteStep(line: line, from: null, to: null)],
-      connections: 0,
+      segments: [
+        RouteSegment(
+          type: 'walking',
+          description: 'Caminhe ${distanceKm.toStringAsFixed(2)} km',
+          distance: distanceKm,
+          time: time,
+        ),
+      ],
+      totalDistance: distanceKm,
+      totalTime: time,
+      transferCount: 0,
     );
   }
 
-  /// Cria uma sugestão de rota com uma conexão
+  // Factory for route with connections
   factory RouteSuggestion.withConnection({
-    required Line firstLine,
+    required Line? firstLine,
     required Logradouro transferPoint,
-    required Line secondLine,
+    required Line? secondLine,
+    required double totalCost,
   }) {
+    // This is a simplified version - the actual implementation would build
+    // detailed segments in the _reconstructRoute method
     return RouteSuggestion(
-      description: 'Pegue ${firstLine.numeroNome} até ${transferPoint.nome}, depois ${secondLine.numeroNome} até destino',
-      steps: [
-        RouteStep(line: firstLine, from: null, to: transferPoint),
-        RouteStep(line: secondLine, from: transferPoint, to: null),
+      segments: [
+        if (firstLine != null)
+          RouteSegment(
+            type: 'bus',
+            description: 'Pegue a linha ${firstLine.numeroNome}',
+            distance: 0, // Will be calculated
+            time: 0, // Will be calculated
+            line: firstLine,
+          ),
+        if (secondLine != null)
+          RouteSegment(
+            type: 'bus',
+            description: 'Transborde para a linha ${secondLine.numeroNome}',
+            distance: 0, // Will be calculated
+            time: 0, // Will be calculated
+            line: secondLine,
+          ),
       ],
-      connections: 1,
+      totalDistance: 0, // Will be calculated
+      totalTime: totalCost,
+      transferCount: secondLine != null ? 1 : 0,
     );
   }
 
-  /// Cria uma sugestão de rota com duas conexões
-  factory RouteSuggestion.withTwoConnections({
-    required Line firstLine,
-    required Logradouro firstTransferPoint,
-    required Line secondLine,
-    required Logradouro secondTransferPoint,
-    required Line thirdLine,
-  }) {
-    return RouteSuggestion(
-      description: 'Pegue ${firstLine.numeroNome} até ${firstTransferPoint.nome}, depois ${secondLine.numeroNome} até ${secondTransferPoint.nome}, depois ${thirdLine.numeroNome} até destino',
-      steps: [
-        RouteStep(line: firstLine, from: null, to: firstTransferPoint),
-        RouteStep(line: secondLine, from: firstTransferPoint, to: secondTransferPoint),
-        RouteStep(line: thirdLine, from: secondTransferPoint, to: null),
-      ],
-      connections: 2,
-    );
-  }
-
-  @override
-  String toString() {
-    return 'RouteSuggestion{description: $description, connections: $connections, steps: $steps}';
-  }
+  // Getters for compatibility with screens
+  List<RouteSegment> get steps => segments;
+  int get connections => transferCount;
+  String get description => 'Rota com ${transferCount} conexão${transferCount != 1 ? 'ões' : ''}';
 }
