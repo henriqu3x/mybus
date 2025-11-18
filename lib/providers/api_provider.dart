@@ -123,13 +123,17 @@ class ApiProvider with ChangeNotifier {
   // Corrigi o uso de ItineraryItem (presumi que 'points' contém ItineraryItem)
   void _processItinerary(int lineId, List<dynamic> stops) { 
     if (stops.isEmpty) return;
-    
-    // Converte de volta para Logradouro para acessar .logId
-    final logradouros = stops.map((item) => item as Logradouro).toList(); 
 
-    for (int i = 0; i < logradouros.length - 1; i++) {
-      final currentStopId = logradouros[i].id;
-      final nextStopId = logradouros[i + 1].id;
+    // Extrai diretamente o logId, garantindo que o objeto possua este campo.
+    // Se 'stops' já vier como List<Logradouro>, o cast abaixo deve funcionar.
+    // Se vier como ItineraryPoint, o cast deve ser para ItineraryPoint.
+    
+    // SOLUÇÃO MAIS ROBUSTA (Assumindo que o objeto do itinerário possui um campo 'logId'):
+    final stopIds = stops.map((item) => (item as dynamic).logId as int).toList(); 
+
+    for (int i = 0; i < stopIds.length - 1; i++) {
+      final currentStopId = stopIds[i];
+      final nextStopId = stopIds[i + 1];
 
       _busGraphConnections.putIfAbsent(currentStopId, () => {});
       _busGraphConnections[currentStopId]!.putIfAbsent(lineId, () => []).add(nextStopId);
