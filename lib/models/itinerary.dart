@@ -1,6 +1,6 @@
 /// Representa um ponto no itinerário de uma linha de ônibus
 class ItineraryPoint {
-  /// Identificador único do logradouro
+  /// Identificador único do logradouro (ponto de parada)
   final int logId;
 
   /// Nome do ponto de parada
@@ -8,21 +8,33 @@ class ItineraryPoint {
 
   /// Distância percorrida até este ponto (em metros)
   final int distanciaPercorrida;
+  
+  // 🛑 ADICIONADOS: Coordenadas geográficas, essenciais para o roteamento
+  final double latitude;
+  final double longitude;
 
   const ItineraryPoint({
     required this.logId,
     required this.name,
     required this.distanciaPercorrida,
+    required this.latitude,
+    required this.longitude,
   });
 
   /// Cria uma instância de ItineraryPoint a partir de um mapa JSON
   factory ItineraryPoint.fromJson(Map<String, dynamic> json) {
+    // Tenta extrair Latitude e Longitude (assume 0.0 se não estiver presente)
+    final lat = (json['latitude'] as num?)?.toDouble() ?? 0.0;
+    final lon = (json['longitude'] as num?)?.toDouble() ?? 0.0;
+    
     return ItineraryPoint(
       logId: json['logId'] is int ? json['logId'] : int.tryParse(json['logId']?.toString() ?? '0') ?? 0,
       name: (json['nome'] ?? '').toString().trim(),
       distanciaPercorrida: json['distanciaPercorrida'] is int
           ? json['distanciaPercorrida']
           : int.tryParse(json['distanciaPercorrida']?.toString() ?? '0') ?? 0,
+      latitude: lat,
+      longitude: lon,
     );
   }
 
@@ -32,6 +44,8 @@ class ItineraryPoint {
       'logId': logId,
       'nome': name,
       'distanciaPercorrida': distanciaPercorrida,
+      'latitude': latitude,
+      'longitude': longitude,
     };
   }
 
@@ -40,20 +54,22 @@ class ItineraryPoint {
       identical(this, other) ||
       other is ItineraryPoint &&
           runtimeType == other.runtimeType &&
-          logId == other.logId &&
-          name == other.name &&
-          distanciaPercorrida == other.distanciaPercorrida;
+          logId == other.logId; // Comparar apenas pelo ID é suficiente
 
   @override
-  int get hashCode => logId.hashCode ^ name.hashCode ^ distanciaPercorrida.hashCode;
+  int get hashCode => logId.hashCode;
 
   @override
   String toString() {
-    return 'ItineraryPoint{logId: $logId, name: $name, distanciaPercorrida: $distanciaPercorrida}';
+    return 'ItineraryPoint{logId: $logId, name: $name, dist: $distanciaPercorrida, lat: $latitude, lon: $longitude}';
   }
 }
 
-/// Representa o itinerário completo de uma linha de ônibus
+// ------------------------------------------------------------
+// CLASSE ITINERARY
+// ------------------------------------------------------------
+
+/// Representa o itinerário completo de uma linha de ônibus (em uma única direção: ida ou volta)
 class Itinerary {
   /// Ponto de partida do itinerário
   final String pontoInicial;
@@ -66,21 +82,22 @@ class Itinerary {
     required this.points,
   });
 
-  /// Cria uma instância de Itinerary a partir de um mapa JSON
+  /// Cria uma instância de Itinerary a partir de um mapa JSON.
+  /// ⚠️ OBS: Esta factory presume que o JSON contém APENAS a lista de pontos para UMA direção,
+  /// ou que a lista de pontos está na chave 'sequenciaLogradouro' ou 'points'.
   factory Itinerary.fromJson(Map<String, dynamic> json) {
+    // Tenta extrair a lista de pontos da chave genérica de sequências.
+    // Usamos o padrão original de fallback para garantir compatibilidade se a API
+    // enviar 'itinerarioIda' ou 'itinerarioVolta' como a lista principal.
+    final List<dynamic> pointsList = (json['itinerarioIda'] ?? json['itinerarioVolta'] ?? json['points'] ?? []) as List<dynamic>;
+
     return Itinerary(
       pontoInicial: (json['pontoInicial'] ?? '').toString().trim(),
-      points: (json['itinerarioIda'] as List<dynamic>?)
-              ?.map((point) => ItineraryPoint.fromJson(
-                  point is Map<String, dynamic> ? point : {},
-                ))
-              .toList() ??
-          (json['itinerarioVolta'] as List<dynamic>?)
-              ?.map((point) => ItineraryPoint.fromJson(
-                  point is Map<String, dynamic> ? point : {},
-                ))
-              .toList() ??
-          [],
+      points: pointsList
+          .map((point) => ItineraryPoint.fromJson(
+                point is Map<String, dynamic> ? point : {},
+              ))
+          .toList(),
     );
   }
 
@@ -88,9 +105,8 @@ class Itinerary {
   Map<String, dynamic> toJson() {
     return {
       'pontoInicial': pontoInicial,
-      'itinerarioIda': {
-        'sequenciaLogradouro': points.map((point) => point.toJson()).toList(),
-      },
+      // Retorna a lista de pontos na chave que o seu backend espera
+      'sequenciaLogradouro': points.map((point) => point.toJson()).toList(),
     };
   }
 
@@ -107,6 +123,6 @@ class Itinerary {
 
   @override
   String toString() {
-    return 'Itinerary{pontoInicial: $pontoInicial, points: $points}';
+    return 'Itinerary{pontoInicial: $pontoInicial, pointsCount: ${points.length}}';
   }
 }

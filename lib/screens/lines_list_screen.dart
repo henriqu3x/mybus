@@ -38,7 +38,8 @@ class _LinesListScreenState extends State<LinesListScreen> {
             line.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
             line.numeroNome.toLowerCase().contains(_searchQuery.toLowerCase());
 
-        final matchesType = _selectedType == 'Todas' || line.tipoLinha == _selectedType;
+        final matchesType =
+            _selectedType == 'Todas' || line.tipoLinha == _selectedType;
 
         return matchesSearch && matchesType;
       }).toList();
@@ -63,19 +64,20 @@ class _LinesListScreenState extends State<LinesListScreen> {
       ),
       body: Consumer<ApiProvider>(
         builder: (context, provider, child) {
-          if (provider.isLoadingLines) {
+          if (provider.isLoading) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          if (provider.errorLines != null) {
+          if (provider.error != null) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const Icon(Icons.error_outline,
+                      color: Colors.red, size: 48),
                   const SizedBox(height: 16),
                   Text(
-                    provider.errorLines!,
+                    provider.error!,
                     style: const TextStyle(color: Colors.red),
                     textAlign: TextAlign.center,
                   ),
@@ -124,7 +126,9 @@ class _LinesListScreenState extends State<LinesListScreen> {
                     // Filtro por tipo
                     Row(
                       children: [
-                        const Text('Tipo: ', style: TextStyle(fontWeight: FontWeight.w500)),
+                        const Text('Tipo: ',
+                            style:
+                                TextStyle(fontWeight: FontWeight.w500)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButton<String>(
@@ -159,7 +163,8 @@ class _LinesListScreenState extends State<LinesListScreen> {
 
               // Contador de resultados
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Text(
                   '${_filteredLines.length} linha(s) encontrada(s)',
                   style: const TextStyle(
@@ -172,60 +177,75 @@ class _LinesListScreenState extends State<LinesListScreen> {
               // Lista de linhas
               Expanded(
                 child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   itemCount: _filteredLines.length,
                   itemBuilder: (context, index) {
                     final line = _filteredLines[index];
                     final isFavorite = provider.isFavorite(line);
 
                     return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      margin:
+                          const EdgeInsets.symmetric(vertical: 4),
                       elevation: 2,
                       child: ListTile(
                         leading: CircleAvatar(
                           backgroundColor: Colors.blue,
                           child: Text(
                             line.id.toString(),
-                            style: const TextStyle(color: Colors.white),
+                            style:
+                                const TextStyle(color: Colors.white),
                           ),
                         ),
                         title: Text(
                           line.name,
-                          style: const TextStyle(fontWeight: FontWeight.w500),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w500),
                         ),
-                        subtitle: Text('${line.numeroNome} - ${line.tipoLinha}'),
+                        subtitle: Text(
+                            '${line.numeroNome} - ${line.tipoLinha}'),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: Icon(
-                                isFavorite ? Icons.favorite : Icons.favorite_border,
-                                color: isFavorite ? Colors.red : Colors.grey,
+                                isFavorite
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: isFavorite
+                                    ? Colors.red
+                                    : Colors.grey,
                               ),
                               onPressed: () {
                                 if (isFavorite) {
                                   provider.removeFromFavorites(line);
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
                                     SnackBar(
-                                      content: Text('${line.name} removido dos favoritos'),
+                                      content: Text(
+                                          '${line.name} removido dos favoritos'),
                                       action: SnackBarAction(
                                         label: 'Desfazer',
-                                        onPressed: () => provider.addToFavorites(line),
+                                        onPressed: () => provider
+                                            .addToFavorites(line),
                                       ),
                                     ),
                                   );
                                 } else {
                                   provider.addToFavorites(line);
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
                                     SnackBar(
-                                      content: Text('${line.name} adicionado aos favoritos'),
+                                      content: Text(
+                                          '${line.name} adicionado aos favoritos'),
                                     ),
                                   );
                                 }
                               },
                             ),
                             PopupMenuButton<String>(
-                              onSelected: (value) => _onMenuItemSelected(value, line),
+                              onSelected: (value) =>
+                                  _onMenuItemSelected(value, line),
                               itemBuilder: (context) => [
                                 const PopupMenuItem(
                                   value: 'itinerary',
@@ -239,7 +259,8 @@ class _LinesListScreenState extends State<LinesListScreen> {
                             ),
                           ],
                         ),
-                        onTap: () => _onMenuItemSelected('itinerary', line),
+                        onTap: () =>
+                            _onMenuItemSelected('itinerary', line),
                       ),
                     );
                   },
@@ -258,7 +279,8 @@ class _LinesListScreenState extends State<LinesListScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => ItineraryDetailsScreen(line: line),
+            builder: (context) =>
+                ItineraryDetailsScreen(line: line),
           ),
         );
         break;
