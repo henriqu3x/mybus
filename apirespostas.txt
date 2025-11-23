@@ -1,5 +1,18 @@
 http://gistapis.etufor.ce.gov.br:8081/api/itinerario/ + idLinha
 
+http://gistapis.etufor.ce.gov.br:8081/api/linhas/
+
+http://gistapis.etufor.ce.gov.br:8081/api/horarios/ + idLinha + ?data= + data // data: YYYYMMDD
+
+http://gistapis.etufor.ce.gov.br:8081/api/logradouros/
+
+http://gistapis.etufor.ce.gov.br:8081/api/LinhasDologradouro/ + idLogradouro
+
+
+
+
+http://gistapis.etufor.ce.gov.br:8081/api/itinerario/ + idLinha
+
 resposta :
 
   "ida": {

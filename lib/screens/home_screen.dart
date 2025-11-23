@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../providers/api_provider.dart';
-import 'lines_list_screen.dart';
-import 'favorites_screen.dart';
+import '../providers/bus_provider.dart';
+import 'line_detail_screen.dart';
 import 'route_planner_screen.dart';
-import 'map_view_screen.dart';
+import 'alert_setup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,27 +13,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _selectedIndex = 0;
-
-  static const List<Widget> _screens = [
-    LinesListScreen(),
-    FavoritesScreen(),
-    RoutePlannerScreen(),
-    MapViewScreen(),
-  ];
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    // Carregar dados iniciais
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<ApiProvider>().fetchLines();
-    });
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
+      final provider = Provider.of<BusProvider>(context, listen: false);
+      provider.fetchLinhas();
+      // Start building graph in background for Route Planner pre-load
+      provider.buildGraph();
     });
   }
 
@@ -42,34 +30,110 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MyBus - Fortaleza'),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-      ),
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.directions_bus),
-            label: 'Linhas',
+        title: const Text('MyBus - Ônibus Inteligente'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.map),
+            tooltip: 'Planejador de Rotas',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RoutePlannerScreen(),
+                ),
+              );
+            },
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.favorite),
-            label: 'Favoritos',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.route),
-            label: 'Rotas',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.map),
-            label: 'Mapa',
+          IconButton(
+            icon: const Icon(Icons.notifications),
+            tooltip: 'Alertas',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AlertSetupScreen(),
+                ),
+              );
+            },
           ),
         ],
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Buscar Linha',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                suffixIcon: IconButton(
+                  icon: const Icon(Icons.clear),
+                  onPressed: () {
+                    _searchController.clear();
+                    Provider.of<BusProvider>(
+                      context,
+                      listen: false,
+                    ).filterLinhas('');
+                  },
+                ),
+              ),
+              onChanged: (value) {
+                Provider.of<BusProvider>(
+                  context,
+                  listen: false,
+                ).filterLinhas(value);
+              },
+            ),
+          ),
+          Expanded(
+            child: Consumer<BusProvider>(
+              builder: (context, provider, child) {
+                if (provider.linhas.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                return ListView.builder(
+                  itemCount: provider.linhas.length,
+                  itemBuilder: (context, index) {
+                    final linha = provider.linhas[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.blue,
+                          child: Text(
+                            linha.numero.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(linha.nome),
+                        subtitle: Text(linha.tipoLinha),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  LineDetailScreen(linha: linha),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
