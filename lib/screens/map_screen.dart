@@ -1,73 +1,70 @@
 import 'package:flutter/material.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
-import '../models/itinerario.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import '../services/nominatim_service.dart';
 
 class MapScreen extends StatefulWidget {
-  final Itinerario? itinerario;
   final String? title;
 
-  const MapScreen({super.key, this.itinerario, this.title});
+  const MapScreen({super.key, this.title});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late GoogleMapController mapController;
+  String? mapUrl;
+  String? error;
 
-  final LatLng _center = const LatLng(
-    -3.7319,
-    -38.5267,
-  ); // Fortaleza coordinates
+  late final WebViewController controller;
 
-  final Set<Marker> _markers = {};
-  final Set<Polyline> _polylines = {};
+  @override
+  void initState() {
+    super.initState();
+    controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted);
 
-  void _onMapCreated(GoogleMapController controller) {
-    mapController = controller;
-    _loadItinerary();
+    _loadStreet();
   }
 
-  void _loadItinerary() {
-    if (widget.itinerario == null) return;
+  Future<void> _loadStreet() async {
+    if (widget.title == null || widget.title!.isEmpty) {
+      setState(() => error = "Nenhuma rua informada");
+      return;
+    }
 
-    List<LatLng> points = [];
+    final coords = await NominatimService.getCoordinates(widget.title!);
 
-    // Note: The API does not provide coordinates for stops, only names and IDs.
-    // In a real scenario, we would need a database of coordinates for each logId.
-    // For this demo, since we don't have coordinates, we can't plot the real route.
-    // I will add a placeholder message or mock some coordinates if possible,
-    // but without real data, the map will be empty or generic.
+    if (coords == null) {
+      setState(() => error = "Rua não encontrada: ${widget.title}");
+      return;
+    }
 
-    // However, the user prompt mentions "Visualização do itinerário completo no mapa".
-    // If the API doesn't give coordinates, maybe I missed something?
-    // Checked API response: "logId", "nome", "distanciaPercorrida". No lat/long.
-    // Checked "logradouros" API: "id", "nome", "tipo". No lat/long.
+    final lat = coords.latitude;
+    final lon = coords.longitude;
 
-    // CRITICAL: The provided API does not seem to return coordinates.
-    // I will display a SnackBar warning about this limitation.
+    const delta = 0.0015;
 
-    setState(() {
-      // Adding a dummy marker to show map is working
-      _markers.add(
-        const Marker(
-          markerId: MarkerId('center'),
-          position: LatLng(-3.7319, -38.5267),
-          infoWindow: InfoWindow(title: 'Fortaleza'),
-        ),
-      );
-    });
+    final url =
+        "https://www.openstreetmap.org/export/embed.html?"
+        "bbox=${lon - delta},${lat - delta},${lon + delta},${lat + delta}"
+        "&layer=mapnik&marker=$lat,$lon";
+
+    setState(() => mapUrl = url);
+
+    controller.loadRequest(Uri.parse(url));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GoogleMap(
-        onMapCreated: _onMapCreated,
-        initialCameraPosition: CameraPosition(target: _center, zoom: 12.0),
-        markers: _markers,
-        polylines: _polylines,
-      ),
+      appBar: AppBar(title: Text(widget.title ?? "Mapa")),
+      body: error != null
+          ? Center(child: Text(error!))
+          : mapUrl == null
+              ? const Center(child: CircularProgressIndicator())
+              : WebViewWidget(
+                  controller: controller,
+                ),
     );
   }
 }

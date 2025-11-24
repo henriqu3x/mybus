@@ -226,7 +226,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                             context,
                             MaterialPageRoute(
                               builder: (context) =>
-                                  MapScreen(itinerario: itinerario),
+                                  MapScreen(title: ponto.nome),
                             ),
                           );
                         },
