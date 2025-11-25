@@ -5,6 +5,24 @@ import '../models/logradouro.dart';
 import '../utils/graph_utils.dart';
 import '../utils/time_utils.dart';
 
+// --- CLASSE AUXILIAR PARA REPRESENTAR UM TRECHO DE VIAGEM LEGÍVEL ---
+class TripSegment {
+  final String type; // 'BUS'
+  final String lineName;
+  final String startStreetName;
+  final String endStreetName;
+  final double distance;
+  
+  TripSegment({
+    required this.type,
+    required this.lineName,
+    required this.startStreetName,
+    required this.endStreetName,
+    required this.distance,
+  });
+}
+// --------------------------------------------------------------------
+
 class RoutePlannerScreen extends StatefulWidget {
   const RoutePlannerScreen({super.key});
 
@@ -38,6 +56,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       _hasCalculated = true;
     });
 
+    // O cálculo do grafo é demorado, então é feito após o frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<BusProvider>(context, listen: false);
       final route = provider.findRoute(_origin!.id, _destination!.id);
@@ -49,6 +68,59 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     });
   }
 
+  // --- FUNÇÃO CENTRAL: AGRUPAMENTO DAS ARESTAS EM SEGMENTOS LEGÍVEIS ---
+  List<TripSegment> _groupRouteSegments(List<GraphEdge> route) {
+    if (route.isEmpty) return [];
+
+    final List<TripSegment> segments = [];
+    
+    // O ponto de partida é a ORIGEM selecionada
+    String currentStartStreet = _origin!.nome; 
+    String currentLine = route.first.lineName;
+    double currentDistance = 0;
+    
+    // Itera pelas arestas para agrupar
+    for (int i = 0; i < route.length; i++) {
+      final edge = route[i];
+      
+      // Se a linha for a mesma, apenas acumula distância
+      if (edge.lineName == currentLine) {
+        currentDistance += edge.weight;
+      } else {
+        // MUDANÇA DE LINHA: Finaliza o segmento anterior
+        
+        // O ponto de desembarque é o destino da ARESTA ANTERIOR (onde a troca ocorre)
+        final previousEdge = route[i - 1];
+        
+        segments.add(TripSegment(
+          type: 'BUS',
+          lineName: currentLine,
+          startStreetName: currentStartStreet,
+          endStreetName: previousEdge.destination.name, 
+          distance: currentDistance,
+        ));
+        
+        // INICIA NOVO SEGMENTO
+        currentLine = edge.lineName;
+        currentStartStreet = previousEdge.destination.name; // Novo ponto de embarque
+        currentDistance = edge.weight; // Zera e começa a nova distância
+      }
+    }
+
+    // Adiciona o último segmento, que termina no destino final
+    segments.add(TripSegment(
+      type: 'BUS',
+      lineName: currentLine,
+      startStreetName: currentStartStreet,
+      endStreetName: _destination!.nome, // Ponto final
+      distance: currentDistance,
+    ));
+
+    return segments;
+  }
+
+  // ----------------------------------------------------------------------
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -59,7 +131,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           children: [
             Consumer<BusProvider>(
               builder: (context, provider, child) {
-                if (provider.logradouros.isEmpty) {
+                if (provider.logradouros.isEmpty && !provider.isGraphBuilding) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
@@ -87,9 +159,10 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
 
                 return Column(
                   children: [
+                    // Campo de Origem
                     Autocomplete<Logradouro>(
                       optionsBuilder: (TextEditingValue textEditingValue) {
-                        if (textEditingValue.text == '') {
+                        if (textEditingValue.text.isEmpty) {
                           return const Iterable<Logradouro>.empty();
                         }
                         return provider.logradouros.where((Logradouro option) {
@@ -98,33 +171,32 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                           );
                         });
                       },
-                      displayStringForOption: (Logradouro option) =>
-                          option.nome,
+                      displayStringForOption: (Logradouro option) => option.nome,
                       onSelected: (Logradouro selection) {
                         setState(() => _origin = selection);
                       },
-                      fieldViewBuilder:
-                          (
-                            context,
-                            textEditingController,
-                            focusNode,
-                            onFieldSubmitted,
-                          ) {
-                            return TextField(
-                              controller: textEditingController,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Origem',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.my_location),
-                              ),
-                            );
-                          },
+                      fieldViewBuilder: (
+                        context,
+                        textEditingController,
+                        focusNode,
+                        onFieldSubmitted,
+                      ) {
+                        return TextField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+                          decoration: const InputDecoration(
+                            labelText: 'Origem',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.my_location),
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
+                    // Campo de Destino
                     Autocomplete<Logradouro>(
                       optionsBuilder: (TextEditingValue textEditingValue) {
-                        if (textEditingValue.text == '') {
+                        if (textEditingValue.text.isEmpty) {
                           return const Iterable<Logradouro>.empty();
                         }
                         return provider.logradouros.where((Logradouro option) {
@@ -133,28 +205,26 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                           );
                         });
                       },
-                      displayStringForOption: (Logradouro option) =>
-                          option.nome,
+                      displayStringForOption: (Logradouro option) => option.nome,
                       onSelected: (Logradouro selection) {
                         setState(() => _destination = selection);
                       },
-                      fieldViewBuilder:
-                          (
-                            context,
-                            textEditingController,
-                            focusNode,
-                            onFieldSubmitted,
-                          ) {
-                            return TextField(
-                              controller: textEditingController,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Destino',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.location_on),
-                              ),
-                            );
-                          },
+                      fieldViewBuilder: (
+                        context,
+                        textEditingController,
+                        focusNode,
+                        onFieldSubmitted,
+                      ) {
+                        return TextField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+                          decoration: const InputDecoration(
+                            labelText: 'Destino',
+                            border: OutlineInputBorder(),
+                            prefixIcon: Icon(Icons.location_on),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 );
@@ -181,6 +251,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     );
   }
 
+  // --- NOVO MÉTODO: EXIBIÇÃO CLARA DOS RESULTADOS AGRUPADOS ---
   Widget _buildRouteResult() {
     if (_calculating) {
       return const Center(child: CircularProgressIndicator());
@@ -192,37 +263,23 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       );
     }
 
-    if (_route == null) {
+    if (_route == null || _route!.isEmpty) {
       return const Center(
         child: Text('Nenhuma rota encontrada entre estes pontos.'),
       );
     }
+    
+    // 1. Agrupa as arestas em segmentos legíveis
+    final segmentedRoute = _groupRouteSegments(_route!); 
 
-    if (_route!.isEmpty) {
-      return const Center(child: Text('Origem e destino são o mesmo local.'));
-    }
-
-    double totalDistance = 0;
-    int transfers = 0;
-    String? currentLine;
-
-    for (var edge in _route!) {
-      totalDistance += edge.weight;
-      if (currentLine != null && edge.lineName != currentLine) {
-        transfers++;
-      }
-      currentLine = edge.lineName;
-    }
-
-    // Adjust distance to remove penalties from the visual display if they were added to weight
-    // Note: In our graph implementation, the weight in the edge is the DISTANCE.
-    // The penalty is added in the Dijkstra calculation but NOT stored in the edge weight.
-    // So totalDistance here is the actual physical distance.
-
-    int totalTime = TimeUtils.calculateTravelTimeMinutes(totalDistance);
-    // Add time for transfers (e.g., 10 mins per transfer)
-    totalTime += (transfers * 10);
-
+    // 2. Calcula Métricas com base nos Segmentos
+    double totalDistance = segmentedRoute.fold(0.0, (sum, seg) => sum + seg.distance);
+    // Número de trocas é o número de segmentos menos 1
+    int transfers = segmentedRoute.length - 1; 
+    
+    // Adiciona tempo para trocas (e.g., 10 minutos por troca)
+    int totalTime = TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -279,17 +336,43 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         Expanded(
+          // Usa os segmentos agrupados no ListView
           child: ListView.builder(
-            itemCount: _route!.length,
+            itemCount: segmentedRoute.length + 1, // +1 para a etapa final
             itemBuilder: (context, index) {
-              final edge = _route![index];
-              return ListTile(
-                leading: const Icon(Icons.directions_bus),
-                title: Text('Pegue a linha ${edge.lineName}'),
-                subtitle: Text(
-                  'Vá até ${edge.destination.name} (${edge.weight}m)',
-                ),
-              );
+              if (index < segmentedRoute.length) {
+                final segment = segmentedRoute[index];
+                
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.directions_bus, color: Colors.blue),
+                    title: Text(
+                      'Pegue a **Linha ${segment.lineName}**',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Embarque: **${segment.startStreetName}**'),
+                        Text('Desembarque: **${segment.endStreetName}**'),
+                        Text(
+                          'Trajeto: ${(segment.distance / 1000).toStringAsFixed(1)} km',
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                  ),
+                );
+              } else {
+                // Etapa final (Chegada)
+                return ListTile(
+                  leading: const Icon(Icons.flag, color: Colors.green),
+                  title: const Text('Chegada'),
+                  subtitle: Text('Você chegou ao seu destino: **${_destination!.nome}**'),
+                );
+              }
             },
           ),
         ),

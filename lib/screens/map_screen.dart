@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../services/nominatim_service.dart';
 
 class MapScreen extends StatefulWidget {
+// ... (resto da classe MapScreen permanece igual)
   final String? title;
 
   const MapScreen({super.key, this.title});
@@ -20,11 +22,23 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted);
+    
+    controller = WebViewController();
+    
+    // ✅ CORREÇÃO FINAL PARA WEB: 
+    // Combina todas as chamadas específicas de Mobile em um só bloco.
+    // Isso previne erros UnimplementedError na Web para setJavaScriptMode e setBackgroundColor.
+    if (!kIsWeb) {
+      controller
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        // setBackgroundColor também é específico de Mobile (Android/iOS)
+        ..setBackgroundColor(const Color(0x00000000)); 
+    }
 
     _loadStreet();
   }
+
+// ... (o resto da classe permanece igual)
 
   Future<void> _loadStreet() async {
     if (widget.title == null || widget.title!.isEmpty) {
