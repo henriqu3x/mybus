@@ -5,8 +5,11 @@ import 'package:intl/intl.dart';
 import '../models/linha.dart';
 import '../models/itinerario.dart';
 import '../models/horario.dart';
+import '../models/bus_stop.dart';
 import '../providers/bus_provider.dart';
 import '../utils/time_utils.dart';
+import '../services/stop_service.dart';
+import '../services/itinerary_stop_mapper.dart';
 import 'map_screen.dart';
 
 class LineDetailScreen extends StatefulWidget {
@@ -29,6 +32,9 @@ class _LineDetailScreenState extends State<LineDetailScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    
+    // Initialize stop service
+    StopService().loadStops();
     
     // Initialize futures once
     final provider = Provider.of<BusProvider>(context, listen: false);
@@ -103,8 +109,8 @@ class _LineDetailScreenState extends State<LineDetailScreen>
               Expanded(
                 child: TabBarView(
                   children: [
-                    _buildItineraryList(itinerario.ida),
-                    _buildItineraryList(itinerario.volta),
+                    _buildItineraryList(itinerario.ida, 'Ida'),
+                    _buildItineraryList(itinerario.volta, 'Volta'),
                   ],
                 ),
               ),
@@ -115,7 +121,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     );
   }
 
-  Widget _buildItineraryList(Itinerario? itinerario) {
+  Widget _buildItineraryList(Itinerario? itinerario, String direction) {
     if (itinerario == null || itinerario.pontos.isEmpty) {
       return const Center(child: Text('Não disponível'));
     }
@@ -230,7 +236,15 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                     }
                   }
 
-                  return ListTile(
+                  // Get stops for this street
+                  final mapper = ItineraryStopMapper();
+                  final stopsForStreet = mapper.groupStopsByStreet(
+                    itinerario,
+                    widget.linha.numero.toString(),
+                    direction,
+                  )[ponto] ?? [];
+
+                  return ExpansionTile(
                     leading: CircleAvatar(child: Text('${index + 1}')),
                     title: Text(ponto.nome),
                     subtitle: Text(
@@ -238,6 +252,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                     ),
                     trailing: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.access_time, size: 16),
                         Text(
@@ -249,15 +264,27 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                         ),
                       ],
                     ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              MapScreen(title: ponto.nome),
-                        ),
-                      );
-                    },
+                    children: stopsForStreet.isEmpty
+                        ? [const ListTile(title: Text('Nenhuma parada disponível'))]
+                        : stopsForStreet.map((stop) {
+                            return ListTile(
+                              leading: const Icon(Icons.location_on, size: 20),
+                              title: Text('Parada ${stop.stopId}'),
+                              trailing: const Icon(Icons.map, size: 20),
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => MapScreen(
+                                      title: 'Parada ${stop.stopId} - ${ponto.nome}',
+                                      latitude: stop.latitude,
+                                      longitude: stop.longitude,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          }).toList(),
                   );
                 },
               ),

@@ -6,8 +6,15 @@ import '../services/nominatim_service.dart';
 class MapScreen extends StatefulWidget {
 // ... (resto da classe MapScreen permanece igual)
   final String? title;
+  final double? latitude;
+  final double? longitude;
 
-  const MapScreen({super.key, this.title});
+  const MapScreen({
+    super.key,
+    this.title,
+    this.latitude,
+    this.longitude,
+  });
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -35,27 +42,35 @@ class _MapScreenState extends State<MapScreen> {
         ..setBackgroundColor(const Color(0x00000000)); 
     }
 
-    _loadStreet();
+    _loadMap();
   }
 
 // ... (o resto da classe permanece igual)
 
-  Future<void> _loadStreet() async {
+  Future<void> _loadMap() async {
+    // If coordinates are provided, use them directly
+    if (widget.latitude != null && widget.longitude != null) {
+      _loadMapWithCoordinates(widget.latitude!, widget.longitude!);
+      return;
+    }
+
+    // Otherwise, try to geocode the title
     if (widget.title == null || widget.title!.isEmpty) {
-      setState(() => error = "Nenhuma rua informada");
+      setState(() => error = "Nenhuma localização informada");
       return;
     }
 
     final coords = await NominatimService.getCoordinates(widget.title!);
 
     if (coords == null) {
-      setState(() => error = "Rua não encontrada: ${widget.title}");
+      setState(() => error = "Localização não encontrada: ${widget.title}");
       return;
     }
 
-    final lat = coords.latitude;
-    final lon = coords.longitude;
+    _loadMapWithCoordinates(coords.latitude, coords.longitude);
+  }
 
+  void _loadMapWithCoordinates(double lat, double lon) {
     const delta = 0.0015;
 
     final url =
