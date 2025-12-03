@@ -28,7 +28,6 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
   void initState() {
     super.initState();
     NotificationService().init();
-    NotificationService().requestPermissions();
   }
 
   Future<void> _loadItinerary(Linha linha) async {
@@ -87,6 +86,32 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
       return;
     }
 
+    // Find next departure
+    String? nextDepartureTime;
+    final now = TimeOfDay.now();
+    final currentMinutes = now.hour * 60 + now.minute;
+
+    for (var posto in horarios) {
+      for (var h in posto.horarios) {
+        try {
+          final parts = h.horario.split(':');
+          final hMinutes = int.parse(parts[0]) * 60 + int.parse(parts[1]);
+          if (hMinutes > currentMinutes) {
+            nextDepartureTime = h.horario;
+            break;
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (nextDepartureTime != null) break;
+    }
+
+    if (nextDepartureTime == null) {
+      setState(() => _estimatedArrivalTime = 'Sem mais saídas hoje');
+      return;
+    }
+
     // Calculate distance to selected point
     Itinerario? currentItinerario = _selectedDirection == 'Ida'
         ? _itinerarioCompleto!.ida
@@ -97,66 +122,35 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
     double totalDist = 0;
     bool found = false;
     for (var ponto in currentItinerario.pontos) {
+      totalDist += ponto.distanciaPercorrida;
       if (ponto.logId == _selectedPonto!.logId) {
+        // Assuming Ponto has ID or comparing by object/name
         found = true;
         break;
       }
-      totalDist += ponto.distanciaPercorrida;
     }
 
     if (!found) {
+      // Fallback comparison by name if IDs don't match or exist
       totalDist = 0;
       for (var ponto in currentItinerario.pontos) {
+        totalDist += ponto.distanciaPercorrida;
         if (ponto.nome == _selectedPonto!.nome) {
           found = true;
           break;
         }
-        totalDist += ponto.distanciaPercorrida;
       }
     }
 
-    if (!found) {
-      setState(() => _estimatedArrivalTime = 'Ponto não encontrado no itinerário');
-      return;
-    }
-
-    int travelMinutes = TimeUtils.calculateTravelTimeMinutes(totalDist);
-    
-    // Find the next arrival time at this specific stop
-    final now = TimeOfDay.now();
-    final currentMinutes = now.hour * 60 + now.minute;
-    
-    int? bestArrivalMinutes;
-
-    for (var posto in horarios) {
-      for (var h in posto.horarios) {
-        try {
-          final parts = h.horario.split(':');
-          final departureMinutes = int.parse(parts[0]) * 60 + int.parse(parts[1]);
-          
-          final arrivalMinutes = departureMinutes + travelMinutes;
-          
-          if (arrivalMinutes > currentMinutes) {
-            if (bestArrivalMinutes == null || arrivalMinutes < bestArrivalMinutes) {
-              bestArrivalMinutes = arrivalMinutes;
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
-      }
-    }
-
-    if (bestArrivalMinutes != null) {
-      final h = (bestArrivalMinutes ~/ 60) % 24;
-      final m = bestArrivalMinutes % 60;
-      final arrivalTime = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
-      
+    if (found) {
+      int travelMinutes = TimeUtils.calculateTravelTimeMinutes(totalDist);
+      String arrival = TimeUtils.addMinutesToTime(
+        nextDepartureTime,
+        travelMinutes,
+      );
       setState(() {
-        _estimatedArrivalTime = arrivalTime;
+        _estimatedArrivalTime = arrival;
       });
-    } else {
-      setState(() => _estimatedArrivalTime = 'Sem mais ônibus hoje');
     }
   }
 
@@ -268,7 +262,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
               DropdownButtonFormField<Ponto>(
                 isExpanded: true,
                 decoration: const InputDecoration(
-                  labelText: 'Selecione o Ponto de Subida',
+                  labelText: 'Selecione o Ponto de Descida',
                   border: OutlineInputBorder(),
                 ),
                 value: _selectedPonto,
