@@ -1,0 +1,435 @@
+http://gistapis.etufor.ce.gov.br:8081/api/itinerario/ + idLinha
+
+http://gistapis.etufor.ce.gov.br:8081/api/linhas/
+
+http://gistapis.etufor.ce.gov.br:8081/api/horarios/ + idLinha + ?data= + data // data: YYYYMMDD
+
+http://gistapis.etufor.ce.gov.br:8081/api/logradouros/
+
+http://gistapis.etufor.ce.gov.br:8081/api/LinhasDologradouro/ + idLogradouro
+
+
+
+
+http://gistapis.etufor.ce.gov.br:8081/api/itinerario/ + idLinha
+
+resposta :
+
+  "ida": {
+    "pontoInicial": "Rua Vicente Celestino/Umarizeiras/Tulipa Negra",
+    "itinerarioIda": [
+      {
+        "logId": 3846,
+        "nome": "01-Rua Vicente Celestino",
+        "distanciaPercorrida": 20.0
+      },
+      {
+        "logId": 254,
+        "nome": "02-Rua Tulipa Negra (Parque Santa Rosa)",
+        "distanciaPercorrida": 470.0
+      },
+      {
+        "logId": 5223,
+        "nome": "03-Rua Colômbo",
+        "distanciaPercorrida": 306.0
+      },
+      {
+        "logId": 612,
+        "nome": "04-Rua Getúlio Vargas",
+        "distanciaPercorrida": 1074.0
+      },
+      {
+        "logId": 4742,
+        "nome": "05-Rua Ari Lôbo",
+        "distanciaPercorrida": 132.0
+      },
+      {
+        "logId": 614,
+        "nome": "06-Avenida José Tavares",
+        "distanciaPercorrida": 167.0
+      },
+      {
+        "logId": 37,
+        "nome": "07-Avenida Castro, Cônego de",
+        "distanciaPercorrida": 1670.0
+      },
+      {
+        "logId": 537,
+        "nome": "08-Rua Bernardino Campus",
+        "distanciaPercorrida": 74.0
+      },
+      {
+        "logId": 535,
+        "nome": "09-Rua Xisto Albano, Dom",
+        "distanciaPercorrida": 488.0
+      },
+      {
+        "logId": 32,
+        "nome": "10-Rua Luís Vieira (Parque São José)",
+        "distanciaPercorrida": 77.0
+      },
+      {
+        "logId": 37,
+        "nome": "11-Avenida Castro, Cônego de",
+        "distanciaPercorrida": 1944.0
+      },
+      {
+        "logId": 748,
+        "nome": "12-Rua Lins do Rêgo",
+        "distanciaPercorrida": 495.0
+      },
+      {
+        "logId": 33,
+        "nome": "13-Avenida Osório de Paiva, Gal.",
+        "distanciaPercorrida": 1585.0
+      },
+      {
+        "logId": 76,
+        "nome": "14-Rua Eduardo Perdigão",
+        "distanciaPercorrida": 259.0
+      },
+      {
+        "logId": 51,
+        "nome": "15-Terminal Parangaba",
+        "distanciaPercorrida": 85.0
+      }
+    ]
+  },
+  "volta": {
+    "pontoInicial": "Terminal da Parangaba",
+    "itinerarioVolta": [
+      {
+        "logId": 51,
+        "nome": "01-Terminal Parangaba",
+        "distanciaPercorrida": 63.0
+      },
+      {
+        "logId": 52,
+        "nome": "02-Rua Carlos Amora",
+        "distanciaPercorrida": 289.0
+      },
+      {
+        "logId": 5840,
+        "nome": "03-Rua Joaquim Moreira",
+        "distanciaPercorrida": 119.0
+      },
+      {
+        "logId": 76,
+        "nome": "04-Rua Eduardo Perdigão",
+        "distanciaPercorrida": 82.0
+      },
+      {
+        "logId": 33,
+        "nome": "05-Avenida Osório de Paiva, Gal.",
+        "distanciaPercorrida": 1691.0
+      },
+      {
+        "logId": 1256,
+        "nome": "06-Rua Leão do Norte",
+        "distanciaPercorrida": 537.0
+      },
+      {
+        "logId": 37,
+        "nome": "07-Avenida Castro, Cônego de",
+        "distanciaPercorrida": 4544.0
+      },
+      {
+        "logId": 254,
+        "nome": "08-Rua Tulipa Negra (Parque Santa Rosa)",
+        "distanciaPercorrida": 413.0
+      },
+      {
+        "logId": 4741,
+        "nome": "09-Rua Cerejeiras, das",
+        "distanciaPercorrida": 499.0
+      },
+      {
+        "logId": 1930,
+        "nome": "10-Rua Herculano Pena",
+        "distanciaPercorrida": 323.0
+      },
+      {
+        "logId": 3846,
+        "nome": "11-Rua Vicente Celestino",
+        "distanciaPercorrida": 245.0
+      },
+      {
+        "logId": 5559,
+        "nome": "12-Rua Um (Lote Santa Rosa)",
+        "distanciaPercorrida": 244.0
+      },
+      {
+        "logId": 5602,
+        "nome": "13-Rua Fidélis, São (Parque Santa Rosa)",
+        "distanciaPercorrida": 540.0
+      },
+      {
+        "logId": 1929,
+        "nome": "14-Rua Umarizeiras",
+        "distanciaPercorrida": 232.0
+      },
+      {
+        "logId": 3846,
+        "nome": "15-Rua Vicente Celestino",
+        "distanciaPercorrida": 160.0
+      }
+    ]
+  }
+}
+
+http://gistapis.etufor.ce.gov.br:8081/api/linhas/
+
+resposta: 
+
+[
+  {
+    "numero": 617,
+    "nome": "Abreulândia/Lagoa Redonda/Direita/Messejana",
+    "numeroNome": "617-Abreulândia/Lagoa Redonda/Direita/Messejana",
+    "tipoLinha": "Alimentadora"
+  },
+  {
+    "numero": 634,
+    "nome": "Abreulândia/Lagoa Redonda/Esquerda/Messejana",
+    "numeroNome": "634-Abreulândia/Lagoa Redonda/Esquerda/Messejana",
+    "tipoLinha": "Alimentadora"
+  },
+  {
+    "numero": 644,
+    "nome": "Abreulândia/Litorânea/Lagoa Redonda/Messejana",
+    "numeroNome": "644-Abreulândia/Litorânea/Lagoa Redonda/Messejana",
+    "tipoLinha": "Alimentadora"
+  },
+]
+
+http://gistapis.etufor.ce.gov.br:8081/api/horarios/ + idLinha + ?data= + data // data: YYYYMMDD
+
+resposta:
+
+[
+  {
+    "postoControle": "Rua Vicente Celestino/Umarizeiras/Tulipa Negra",
+    "horarios": [
+      {
+        "horario": "04:40",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "05:41",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "06:51",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "08:01",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "09:11",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "10:51",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "12:16",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "13:26",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "14:36",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "15:46",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "17:11",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "18:21",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "19:31",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "21:11",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "22:17",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "23:23",
+        "acessivel": "sim",
+        "tabela": 1
+      }
+    ]
+  },
+  {
+    "postoControle": "Terminal da Parangaba",
+    "horarios": [
+      {
+        "horario": "05:06",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "06:16",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "07:26",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "08:36",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "10:16",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "11:41",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "12:51",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "14:01",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "15:11",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "16:36",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "17:46",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "18:56",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "20:36",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "21:46",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "22:48",
+        "acessivel": "sim",
+        "tabela": 1
+      },
+      {
+        "horario": "23:48",
+        "acessivel": "sim",
+        "tabela": 1
+      }
+    ]
+  }
+]
+
+http://gistapis.etufor.ce.gov.br:8081/api/logradouros/
+
+resposta:
+
+[
+  {
+    "id": 1,
+    "nome": "Pereira de Miranda",
+    "tipo": "Rua                                               "
+  },
+  {
+    "id": 2,
+    "nome": "Jangadeiros, dos",
+    "tipo": "Avenida                                           "
+  },
+  {
+    "id": 3,
+    "nome": "Silas Ribeiro, Prof.",
+    "tipo": "Rua                                               "
+  },
+  {
+    "id": 4,
+    "nome": "Santana Júnior, Eng.",
+    "tipo": "Avenida                                           "
+  },
+  {
+    "id": 5,
+    "nome": "Alberto Sá, Eng.",
+    "tipo": "Avenida                                           "
+  },
+  {
+    "id": 6,
+    "nome": "Renato Braga",
+    "tipo": "Rua                                               "
+  },
+]
+
+http://gistapis.etufor.ce.gov.br:8081/api/LinhasDologradouro/ + idLogradouro
+
+resposta:
+[
+  {
+    "numero": 51,
+    "nome": "Grande Circular I",
+    "numeroNome": "051-Grande Circular I",
+    "tipoLinha": "Complementar"
+  },
+  {
+    "numero": 52,
+    "nome": "Grande Circular II                      ",
+    "numeroNome": "052-Grande Circular II",
+    "tipoLinha": "Complementar"
+  },
+]
