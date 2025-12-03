@@ -1,9 +1,12 @@
+import '../utils/street_name_formatter.dart';
+
 class BusStop {
   final String routeCode;
   final String direction; // "Ida" or "Volta"
   final String stopId;
   final double latitude;
   final double longitude;
+  final String streetName;
 
   BusStop({
     required this.routeCode,
@@ -11,7 +14,11 @@ class BusStop {
     required this.stopId,
     required this.latitude,
     required this.longitude,
+    required this.streetName,
   });
+
+  /// Returns the formatted street name for display in UI
+  String get formattedStreetName => StreetNameFormatter.formatStreetName(streetName);
 
   factory BusStop.fromJson(Map<String, dynamic> json) {
     // Extract direction from "Route Code and Direction" field
@@ -32,6 +39,7 @@ class BusStop {
       stopId: json['[Pontos de Ônibus].ID'].toString(),
       latitude: lat,
       longitude: lon,
+      streetName: json['Street Name']?.toString() ?? '',
     );
   }
 
@@ -42,6 +50,7 @@ class BusStop {
       'stopId': stopId,
       'latitude': latitude,
       'longitude': longitude,
+      'streetName': streetName,
     };
   }
 }

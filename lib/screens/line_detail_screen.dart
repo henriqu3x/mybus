@@ -33,8 +33,8 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     
-    // Initialize stop service
-    StopService().loadStops();
+    // Initialize stop service asynchronously
+    _initializeStopService();
     
     // Initialize futures once
     final provider = Provider.of<BusProvider>(context, listen: false);
@@ -49,6 +49,10 @@ class _LineDetailScreenState extends State<LineDetailScreen>
         setState(() {});
       }
     });
+  }
+
+  Future<void> _initializeStopService() async {
+    await StopService().loadStops();
   }
 
   @override
@@ -269,14 +273,15 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                         : stopsForStreet.map((stop) {
                             return ListTile(
                               leading: const Icon(Icons.location_on, size: 20),
-                              title: Text('Parada ${stop.stopId}'),
+                              title: Text(stop.formattedStreetName),
+                              subtitle: Text('Parada ID: ${stop.stopId}'),
                               trailing: const Icon(Icons.map, size: 20),
                               onTap: () {
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => MapScreen(
-                                      title: 'Parada ${stop.stopId} - ${ponto.nome}',
+                                      title: '${stop.formattedStreetName} - Parada ${stop.stopId}',
                                       latitude: stop.latitude,
                                       longitude: stop.longitude,
                                     ),

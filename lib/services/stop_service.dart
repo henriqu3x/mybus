@@ -15,7 +15,7 @@ class StopService {
     if (_isLoaded) return;
 
     try {
-      final String jsonString = await rootBundle.loadString('paradas_de_onibus.json');
+      final String jsonString = await rootBundle.loadString('paradas.json');
       final List<dynamic> jsonList = json.decode(jsonString);
       
       _allStops = jsonList.map((json) => BusStop.fromJson(json)).toList();
