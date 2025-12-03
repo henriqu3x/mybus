@@ -130,9 +130,26 @@ class _LineDetailScreenState extends State<LineDetailScreen>
         final currentMinutes = now.hour * 60 + now.minute;
 
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          // Collect all departure times in minutes
+          // Collect departure times only for the matching control point
+          HorarioPosto? matchingPosto;
+          
+          // Find the control point that matches the itinerary start point
           for (var posto in snapshot.data!) {
-            for (var h in posto.horarios) {
+            if (posto.postoControle.toLowerCase() == itinerario.pontoInicial.toLowerCase() ||
+                posto.postoControle.toLowerCase().contains(itinerario.pontoInicial.toLowerCase()) ||
+                itinerario.pontoInicial.toLowerCase().contains(posto.postoControle.toLowerCase())) {
+              matchingPosto = posto;
+              break;
+            }
+          }
+          
+          // Fallback: if only one control point exists, use it
+          if (matchingPosto == null && snapshot.data!.length == 1) {
+            matchingPosto = snapshot.data!.first;
+          }
+
+          if (matchingPosto != null) {
+            for (var h in matchingPosto.horarios) {
               try {
                 final parts = h.horario.split(':');
                 final hMinutes =

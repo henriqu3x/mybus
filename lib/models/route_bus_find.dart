@@ -229,7 +229,7 @@ class HaversineCalculator {
 
 class ApiProvider {
   // Configurações e custos do grafo
-  static const double _busSpeedKmh = 15.0; 
+  static const double _busSpeedKmh = 14.0; 
   static const double _busWaitTimeMinutes = 10.0;
   static const double _walkPenaltyFactor = 1.0; 
 

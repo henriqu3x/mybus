@@ -2,25 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/bus_provider.dart';
 import '../models/logradouro.dart';
+import '../models/trip_segment.dart';
 import '../utils/graph_utils.dart';
 import '../utils/time_utils.dart';
-
-// --- CLASSE AUXILIAR PARA REPRESENTAR UM TRECHO DE VIAGEM LEGÍVEL ---
-class TripSegment {
-  final String type; // 'BUS'
-  final String lineName;
-  final String startStreetName;
-  final String endStreetName;
-  final double distance;
-  
-  TripSegment({
-    required this.type,
-    required this.lineName,
-    required this.startStreetName,
-    required this.endStreetName,
-    required this.distance,
-  });
-}
+import 'route_detail_screen.dart';
 // --------------------------------------------------------------------
 
 class RoutePlannerScreen extends StatefulWidget {
@@ -285,48 +270,73 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       children: [
         Card(
           color: Colors.green[50],
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    Column(
-                      children: [
-                        const Text(
-                          'Tempo Estimado',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '$totalTime min',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            color: Colors.green,
+          child: InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RouteDetailScreen(
+                    segments: segmentedRoute,
+                    origin: _origin!.nome,
+                    destination: _destination!.nome,
+                    totalDistance: totalDistance,
+                    totalTime: totalTime,
+                  ),
+                ),
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text(
+                            'Tempo Estimado',
+                            style: TextStyle(fontWeight: FontWeight.bold),
                           ),
-                        ),
-                      ],
+                          Text(
+                            '$totalTime min',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text(
+                            'Distância',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          Text(
+                            '${(totalDistance / 1000).toStringAsFixed(1)} km',
+                            style: const TextStyle(fontSize: 20),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Trocas de ônibus: $transfers',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Toque para ver horários detalhados',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue,
+                      fontStyle: FontStyle.italic,
                     ),
-                    Column(
-                      children: [
-                        const Text(
-                          'Distância',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        Text(
-                          '${(totalDistance / 1000).toStringAsFixed(1)} km',
-                          style: const TextStyle(fontSize: 20),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Trocas de ônibus: $transfers',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ],
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -362,7 +372,6 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                         ),
                       ],
                     ),
-                    trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                   ),
                 );
               } else {

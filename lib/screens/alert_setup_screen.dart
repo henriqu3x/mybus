@@ -128,8 +128,24 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
     
     int? bestArrivalMinutes;
 
+    // Find matching control point
+    HorarioPosto? matchingPosto;
     for (var posto in horarios) {
-      for (var h in posto.horarios) {
+      if (posto.postoControle.toLowerCase() == currentItinerario.pontoInicial.toLowerCase() ||
+          posto.postoControle.toLowerCase().contains(currentItinerario.pontoInicial.toLowerCase()) ||
+          currentItinerario.pontoInicial.toLowerCase().contains(posto.postoControle.toLowerCase())) {
+        matchingPosto = posto;
+        break;
+      }
+    }
+    
+    // Fallback
+    if (matchingPosto == null && horarios.length == 1) {
+      matchingPosto = horarios.first;
+    }
+
+    if (matchingPosto != null) {
+      for (var h in matchingPosto.horarios) {
         try {
           final parts = h.horario.split(':');
           final departureMinutes = int.parse(parts[0]) * 60 + int.parse(parts[1]);
