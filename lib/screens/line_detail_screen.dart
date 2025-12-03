@@ -30,6 +30,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     _tabController = TabController(length: 2, vsync: this);
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
     
     // Initialize stop service asynchronously
     _initializeStopService();
@@ -49,6 +50,8 @@ class _LineDetailScreenState extends State<LineDetailScreen>
 =======
 =======
 >>>>>>> parent of 07d42ee (upd versão 1.5)
+=======
+>>>>>>> parent of 07d42ee (upd versão 1.5)
     // Fetch data when screen loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<BusProvider>(
@@ -61,6 +64,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
         listen: false,
       ).getHorarios(widget.linha.numero, today);
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> parent of 07d42ee (upd versão 1.5)
     });
   }
@@ -69,6 +73,11 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     await StopService().loadStops();
   }
 
+=======
+    });
+  }
+
+>>>>>>> parent of 07d42ee (upd versão 1.5)
 =======
     });
   }
@@ -136,6 +145,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
               ),
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
               Expanded(
                 child: TabBarView(
                   children: [
@@ -146,6 +156,10 @@ class _LineDetailScreenState extends State<LineDetailScreen>
               ),
             ],
           ),
+=======
+            );
+          },
+>>>>>>> parent of 07d42ee (upd versão 1.5)
 =======
             );
           },
@@ -225,6 +239,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                       ),
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                     )
                   else
                     const Text(
@@ -297,6 +312,9 @@ class _LineDetailScreenState extends State<LineDetailScreen>
 =======
                       if (nextDepartureTime != null)
 >>>>>>> parent of 07d42ee (upd versão 1.5)
+=======
+                      if (nextDepartureTime != null)
+>>>>>>> parent of 07d42ee (upd versão 1.5)
                         Text(
                           'Próxima saída: $nextDepartureTime',
                           style: const TextStyle(
@@ -309,6 +327,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                           'Sem próximas saídas hoje',
                           style: TextStyle(color: Colors.red),
                         ),
+<<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
                       ],
@@ -383,6 +402,8 @@ class _LineDetailScreenState extends State<LineDetailScreen>
 =======
 =======
 >>>>>>> parent of 07d42ee (upd versão 1.5)
+=======
+>>>>>>> parent of 07d42ee (upd versão 1.5)
                     ],
                   ),
                 ),
@@ -434,6 +455,9 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                     },
                   ),
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> parent of 07d42ee (upd versão 1.5)
+=======
 >>>>>>> parent of 07d42ee (upd versão 1.5)
 =======
 >>>>>>> parent of 07d42ee (upd versão 1.5)
