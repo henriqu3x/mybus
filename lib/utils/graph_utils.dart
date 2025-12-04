@@ -65,7 +65,11 @@ class TransportGraph {
     }
   }
 
-  List<GraphEdge>? findShortestPath(int startId, int endId) {
+  List<GraphEdge>? findShortestPath(
+    int startId, 
+    int endId, {
+    Map<String, int>? initialWaitTimes,
+  }) {
     final Map<String, GraphEdge> previousEdge = {};
     // Key: State, Value: Previous State Key
     final Map<String, String> previousState = {};
@@ -76,6 +80,10 @@ class TransportGraph {
     // Penalty for switching lines (in meters).
     // 50,000 meters (50km) to strongly prefer direct routes.
     const double transferPenalty = 50000.0;
+    
+    // Speed in m/min for converting wait time to distance penalty
+    // Must match TimeUtils.averageSpeedKmh (25.0 km/h)
+    const double speedMetersPerMinute = (25.0 * 1000) / 60;
 
     // Min cost to reach a node arriving on a specific line
     // Key: "$nodeId|$lineName" (or "$nodeId|null" for start)
@@ -114,9 +122,22 @@ class TransportGraph {
 
       for (var edge in neighbors) {
         double penalty = 0;
+        
         // Apply penalty if we are switching lines (and it's not the start)
         if (current.lineName != null && current.lineName != edge.lineName) {
           penalty = transferPenalty;
+        }
+        
+        // Apply initial wait time penalty if we are at the start node
+        if (current.nodeId == startId && initialWaitTimes != null) {
+          // Check if we have a wait time for this line
+          // The lineName in edge might be "051-Grande Circular I"
+          // The key in initialWaitTimes should match this
+          if (initialWaitTimes.containsKey(edge.lineName)) {
+            final waitMinutes = initialWaitTimes[edge.lineName]!;
+            // Convert minutes to meters equivalent
+            penalty += waitMinutes * speedMetersPerMinute;
+          }
         }
 
         double newCost = current.cost + edge.weight + penalty;

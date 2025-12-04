@@ -499,16 +499,18 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         final ponto = itinerario.pontos[i];
         
         // Check for start point match
-        if (startIndex == null && 
-           (ponto.nome.contains(startPointName) || startPointName.contains(ponto.nome))) {
-          startIndex = i;
-          startDist = currentDist;
+        if (startIndex == null) {
+           if (_areNamesSimilar(ponto.nome, startPointName)) {
+              startIndex = i;
+              startDist = currentDist;
+           }
         }
         
         // Check for end point match
-        if (endIndex == null && 
-           (ponto.nome.contains(endPointName) || endPointName.contains(ponto.nome))) {
-          endIndex = i;
+        if (endIndex == null) {
+           if (_areNamesSimilar(ponto.nome, endPointName)) {
+              endIndex = i;
+           }
         }
 
         currentDist += ponto.distanciaPercorrida;
@@ -538,10 +540,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     HorarioPosto? matchingPosto;
     
     for (var posto in horarios) {
-      // Verificar correspondência entre posto de controle e ponto inicial do itinerário
-      if (posto.postoControle.toLowerCase() == pontoInicial.toLowerCase() ||
-          posto.postoControle.toLowerCase().contains(pontoInicial.toLowerCase()) ||
-          pontoInicial.toLowerCase().contains(posto.postoControle.toLowerCase())) {
+      if (_areNamesSimilar(posto.postoControle, pontoInicial)) {
         matchingPosto = posto;
         break;
       }
@@ -555,7 +554,9 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
        }
     }
     
-    if (matchingPosto == null) return arrivalTimes;
+    if (matchingPosto == null) {
+      return arrivalTimes;
+    }
 
     for (var h in matchingPosto.horarios) {
       try {
@@ -573,6 +574,40 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
     arrivalTimes.sort();
     return arrivalTimes.take(maxCount).toList();
+  }
+
+  bool _areNamesSimilar(String name1, String name2) {
+    final n1 = _normalizeName(name1);
+    final n2 = _normalizeName(name2);
+    
+    // 1. Direct containment check (fast path)
+    if (n1.contains(n2) || n2.contains(n1)) return true;
+    
+    // 2. Token-based matching only as fallback (slower but more flexible)
+    final words1 = n1.split(' ').where((w) => w.length > 2).toSet();
+    final words2 = n2.split(' ').where((w) => w.length > 2).toSet();
+    
+    if (words1.isEmpty || words2.isEmpty) return false;
+    
+    final intersection = words1.intersection(words2);
+    
+    // If 60% or more words match, consider it similar
+    return intersection.length >= words1.length * 0.6 || 
+           intersection.length >= words2.length * 0.6;
+  }
+
+  String _normalizeName(String name) {
+    return name.toLowerCase()
+        .replaceAll(RegExp(r'^\d+-'), '') // Remove numeric prefixes like "01-", "13-"
+        .replaceAll(RegExp(r'[áàâãä]'), 'a')
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[íìîï]'), 'i')
+        .replaceAll(RegExp(r'[óòôõö]'), 'o')
+        .replaceAll(RegExp(r'[úùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'), '') // Remove prepositions
+        .replaceAll(RegExp(r'\s+'), ' ') // Collapse spaces
+        .trim();
   }
 
   String _formatMinutesToTime(int minutes) {

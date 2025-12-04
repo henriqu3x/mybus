@@ -1,6 +1,6 @@
 class TimeUtils {
   static const double averageSpeedKmh =
-      25.0; // Reduced to realistic urban bus speed
+      14.0; // Realistic urban bus speed in Fortaleza
 
   /// Calculates the travel time in minutes for a given distance in meters
   static int calculateTravelTimeMinutes(double distanceMeters) {

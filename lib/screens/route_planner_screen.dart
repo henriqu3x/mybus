@@ -32,7 +32,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     });
   }
 
-  void _calculateRoute() {
+  Future<void> _calculateRoute() async {
     if (_origin == null || _destination == null) return;
 
     setState(() {
@@ -41,15 +41,15 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       _hasCalculated = true;
     });
 
-    // O cálculo do grafo é demorado, então é feito após o frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final provider = Provider.of<BusProvider>(context, listen: false);
-      final route = provider.findRoute(_origin!.id, _destination!.id);
+    final provider = Provider.of<BusProvider>(context, listen: false);
+    // findRoute is now async because it fetches schedules
+    final route = await provider.findRoute(_origin!.id, _destination!.id);
 
-      setState(() {
-        _route = route;
-        _calculating = false;
-      });
+    if (!mounted) return;
+
+    setState(() {
+      _route = route;
+      _calculating = false;
     });
   }
 

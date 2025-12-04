@@ -18,6 +18,8 @@ class NotificationService {
   Future<void> init() async {
     // Inicializa os dados de fusos horários
     tz.initializeTimeZones();
+    // Define o timezone local para Fortaleza (Ceará, Brasil)
+    tz.setLocalLocation(tz.getLocation('America/Fortaleza'));
 
     // Configurações para Android
     const AndroidInitializationSettings initializationSettingsAndroid =
