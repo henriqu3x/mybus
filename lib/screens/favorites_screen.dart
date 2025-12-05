@@ -16,17 +16,17 @@ class FavoritesScreen extends StatefulWidget {
   State<FavoritesScreen> createState() => _FavoritesScreenState();
 }
 
-class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProviderStateMixin {
+class _FavoritesScreenState extends State<FavoritesScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   List<Favorito> _favoriteLines = [];
-  List<Favorito> _favoriteStops = [];
   List<Favorito> _favoriteRoutes = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadFavorites();
   }
 
@@ -38,15 +38,20 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
 
   Future<void> _loadFavorites() async {
     setState(() => _loading = true);
-    
-    final lines = await FavoritesService().getFavoritesByType(FavoritoType.LINE);
-    final stops = await FavoritesService().getFavoritesByType(FavoritoType.STOP);
-    final routes = await FavoritesService().getFavoritesByType(FavoritoType.ROUTE);
-    
+
+    final lines = await FavoritesService().getFavoritesByType(
+      FavoritoType.LINE,
+    );
+    final stops = await FavoritesService().getFavoritesByType(
+      FavoritoType.STOP,
+    );
+    final routes = await FavoritesService().getFavoritesByType(
+      FavoritoType.ROUTE,
+    );
+
     if (mounted) {
       setState(() {
         _favoriteLines = lines;
-        _favoriteStops = stops;
         _favoriteRoutes = routes;
         _loading = false;
       });
@@ -62,7 +67,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
           controller: _tabController,
           tabs: const [
             Tab(icon: Icon(Icons.directions_bus), text: 'Linhas'),
-            // Tab(icon: Icon(Icons.place), text: 'Paradas'),
             Tab(icon: Icon(Icons.route), text: 'Rotas'),
           ],
         ),
@@ -71,11 +75,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
           ? const Center(child: CircularProgressIndicator())
           : TabBarView(
               controller: _tabController,
-              children: [
-                _buildLinesTab(),
-                _buildStopsTab(),
-                _buildRoutesTab(),
-              ],
+              children: [_buildLinesTab(), _buildRoutesTab()],
             ),
     );
   }
@@ -121,38 +121,6 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
     );
   }
 
-  Widget _buildStopsTab() {
-    if (_favoriteStops.isEmpty) {
-      return _buildEmptyState(
-        icon: Icons.place,
-        message: 'Nenhuma parada favorita',
-        subtitle: 'Adicione paradas aos favoritos no mapa',
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: _favoriteStops.length,
-      itemBuilder: (context, index) {
-        final favorito = _favoriteStops[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.green,
-              child: Icon(Icons.place, color: Colors.white),
-            ),
-            title: Text(favorito.displayName),
-            subtitle: Text('Adicionado em ${_formatDate(favorito.createdAt)}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red),
-              onPressed: () => _confirmDelete(favorito),
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   Widget _buildRoutesTab() {
     if (_favoriteRoutes.isEmpty) {
@@ -187,10 +155,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
                 const SizedBox(height: 4),
                 Text(
                   _getRoutePreview(favorito.routeData),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -215,11 +180,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 80,
-            color: Colors.grey[300],
-          ),
+          Icon(icon, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
             message,
@@ -232,10 +193,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[500],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[500]),
             textAlign: TextAlign.center,
           ),
         ],
@@ -260,19 +218,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
 
   String _getRoutePreview(String? routeData) {
     if (routeData == null) return '';
-    
+
     try {
       final data = jsonDecode(routeData) as Map<String, dynamic>;
       final segments = data['segments'] as List<dynamic>;
-      
+
       if (segments.isEmpty) return '';
-      
+
       final lineNames = segments
           .map((s) => s['lineName'] as String)
           .toSet()
           .take(2)
           .join(', ');
-      
+
       final moreCount = segments.length > 2 ? ' +${segments.length - 2}' : '';
       return 'Linhas: $lineNames$moreCount';
     } catch (e) {
@@ -285,7 +243,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remover favorito'),
-        content: Text('Deseja remover "${favorito.displayName}" dos favoritos?'),
+        content: Text(
+          'Deseja remover "${favorito.displayName}" dos favoritos?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -293,10 +253,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Remover',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Remover', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -305,7 +262,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
     if (confirmed == true) {
       await FavoritesService().removeFavorite(favorito.favoritoId);
       _loadFavorites();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -320,35 +277,33 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
   Future<void> _openLineDetail(Favorito favorito) async {
     final provider = Provider.of<BusProvider>(context, listen: false);
     final linhaNumero = int.tryParse(favorito.entityId);
-    
+
     if (linhaNumero == null) return;
-    
+
     final linha = provider.linhas.cast<Linha?>().firstWhere(
       (l) => l?.numero == linhaNumero,
       orElse: () => null,
     );
-    
+
     if (linha != null && mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (context) => LineDetailScreen(linha: linha),
-        ),
+        MaterialPageRoute(builder: (context) => LineDetailScreen(linha: linha)),
       );
     }
   }
 
   Future<void> _openRouteDetail(Favorito favorito) async {
     if (favorito.routeData == null) return;
-    
+
     try {
       final data = jsonDecode(favorito.routeData!) as Map<String, dynamic>;
-      
+
       final origin = data['origin'] as String;
       final destination = data['destination'] as String;
       final totalDistance = (data['totalDistance'] as num).toDouble();
       final totalTime = data['totalTime'] as int;
-      
+
       final segmentsData = data['segments'] as List<dynamic>;
       final segments = segmentsData.map((s) {
         return TripSegment(
@@ -359,7 +314,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
           distance: (s['distance'] as num).toDouble(),
         );
       }).toList();
-      
+
       if (mounted) {
         Navigator.push(
           context,
