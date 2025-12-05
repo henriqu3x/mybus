@@ -358,7 +358,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                   child: ListTile(
                     leading: const Icon(Icons.directions_bus, color: Colors.blue),
                     title: Text(
-                      'Pegue a **Linha ${segment.lineName}**',
+                      'Pegue a Linha ${segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '')}',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Column(

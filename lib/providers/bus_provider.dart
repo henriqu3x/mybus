@@ -108,15 +108,15 @@ class BusProvider with ChangeNotifier {
 
               if (isActive) {
                 var itinerarioCompleto = await getItinerario(linha.numero);
-                if (itinerarioCompleto.ida != null) {
+                  if (itinerarioCompleto.ida != null) {
                   allItineraries.add({
-                    'line': linha.numeroNome,
+                    'line': '${linha.numeroNome.trim()}_IDA',
                     'itinerario': itinerarioCompleto.ida,
                   });
                 }
                 if (itinerarioCompleto.volta != null) {
                   allItineraries.add({
-                    'line': linha.numeroNome,
+                    'line': '${linha.numeroNome.trim()}_VOLTA',
                     'itinerario': itinerarioCompleto.volta,
                   });
                 }
@@ -144,6 +144,10 @@ class BusProvider with ChangeNotifier {
     // Calculate initial wait times for lines at the start node
     final Map<String, int> initialWaitTimes = {};
     
+    final today = DateTime.now();
+    final dateStr = "${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}";
+    final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
+    
     try {
       // Get all lines starting from this node
       // We can't easily get edges from the graph without exposing adjacencyList, 
@@ -151,10 +155,6 @@ class BusProvider with ChangeNotifier {
       // OR better: expose neighbors from TransportGraph.
       // Since we can't change TransportGraph easily here without re-reading, 
       // let's use the cached itineraries which we have.
-      
-      final today = DateTime.now();
-      final dateStr = "${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}";
-      final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
 
       // Find lines passing through startLogId
       for (var linha in _linhas) {
@@ -177,14 +177,23 @@ class BusProvider with ChangeNotifier {
            }
            
            if (found) {
-             // Calculate wait time for Ida
-             waitTimeIda = await _calculateNextBusWaitTime(
+             final wait = await _calculateNextBusWaitTime(
                linha.numero, 
                dateStr, 
                itinerarioCompleto.ida!.pontoInicial, 
                dist, 
                currentMinutes
              );
+             final key = '${linha.numeroNome.trim()}_IDA';
+             if (wait != null) {
+               if (wait > 45) {
+                 initialWaitTimes[key] = 999999;
+               } else {
+                 initialWaitTimes[key] = wait;
+               }
+             } else {
+               initialWaitTimes[key] = 999999;
+             }
            }
         }
 
@@ -201,63 +210,142 @@ class BusProvider with ChangeNotifier {
            }
            
            if (found) {
-             // Calculate wait time for Volta
-             waitTimeVolta = await _calculateNextBusWaitTime(
+             final wait = await _calculateNextBusWaitTime(
                linha.numero, 
                dateStr, 
                itinerarioCompleto.volta!.pontoInicial, 
                dist, 
                currentMinutes
              );
+             final key = '${linha.numeroNome.trim()}_VOLTA';
+             if (wait != null) {
+               if (wait > 45) {
+                 initialWaitTimes[key] = 999999;
+               } else {
+                 initialWaitTimes[key] = wait;
+               }
+             } else {
+               initialWaitTimes[key] = 999999;
+             }
            }
-        }
-
-        // Take the minimum valid wait time
-        int? bestWait;
-        if (waitTimeIda != null && waitTimeVolta != null) {
-          bestWait = waitTimeIda < waitTimeVolta ? waitTimeIda : waitTimeVolta;
-        } else {
-          bestWait = waitTimeIda ?? waitTimeVolta;
-        }
-
-        // If there's a valid wait time, use it. Otherwise, penalize heavily.
-        if (bestWait != null) {
-          initialWaitTimes[linha.numeroNome] = bestWait;
-        } else {
-          // No buses available - make this line extremely expensive (but not infinite to avoid breaking Dijkstra)
-          initialWaitTimes[linha.numeroNome] = 999999; // ~694 days in minutes
         }
       }
     } catch (e) {
       print('Error calculating wait times: $e');
     }
 
-    // Find initial route
-    var route = _graph!.findShortestPath(startLogId, endLogId, initialWaitTimes: initialWaitTimes);
+    // Iterative validation: find route, validate all segments, exclude bad lines, retry
+    final Set<String> excludedLines = {};
+    int attempts = 0;
+    const maxAttempts = 10;
     
-    // Validate that all lines in the route have buses available
-    if (route != null && route.isNotEmpty) {
-      bool needsRecalculation = false;
-      final Set<String> linesToExclude = {};
+    while (attempts < maxAttempts) {
+      var route = _graph!.findShortestPath(
+        startLogId, 
+        endLogId, 
+        initialWaitTimes: initialWaitTimes,
+        excludedLines: excludedLines,
+      );
       
-      for (var edge in route) {
-        // Check if this line has buses available
-        if (!initialWaitTimes.containsKey(edge.lineName) || initialWaitTimes[edge.lineName] == 999999) {
-          linesToExclude.add(edge.lineName);
-          needsRecalculation = true;
-        }
+      if (route == null || route.isEmpty) {
+        return null;
       }
       
-      // If we found lines without buses, penalize them and recalculate
-      if (needsRecalculation) {
-        for (var lineName in linesToExclude) {
-          initialWaitTimes[lineName] = 999999;
-        }
-        route = _graph!.findShortestPath(startLogId, endLogId, initialWaitTimes: initialWaitTimes);
+      // Validate all segments of the route
+      final invalidLine = await _validateRouteSegments(route, currentMinutes, dateStr);
+      
+      if (invalidLine == null) {
+        // Route is valid!
+        return route;
       }
+      
+      // Route has invalid segment, exclude that line and retry
+      excludedLines.add(invalidLine);
+      attempts++;
     }
     
-    return route;
+    return null;
+  }
+
+  /// Validates all segments of a route by simulating the journey timeline.
+  /// Returns the line name that failed validation, or null if route is valid.
+  Future<String?> _validateRouteSegments(
+    List<GraphEdge> route, 
+    int startMinutes,
+    String dateStr,
+  ) async {
+    int currentMinutes = startMinutes;
+    String? previousLine;
+    
+    for (int i = 0; i < route.length; i++) {
+      final edge = route[i];
+      
+      // Check if this is a transfer (new line)
+      if (edge.lineName != previousLine) {
+        // Extract line number from name like "051-Name_IDA"
+        String lineNameClean = edge.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '').trim();
+        final match = RegExp(r'^(\d+)').firstMatch(lineNameClean);
+        if (match == null) continue;
+        
+        int lineNum = int.parse(match.group(1)!);
+        
+        // Get the boarding stop ID
+        // For first segment (i==0), we already validated via initialWaitTimes
+        // For transfers (i>0), boarding happens at previous edge's destination
+        if (i > 0) {
+          int boardingStopId = route[i - 1].destination.id;
+          
+          // Get itinerary to find this stop
+          var itinerarioCompleto = await getItinerario(lineNum);
+          var itinerario = edge.lineName.endsWith('_VOLTA') 
+              ? itinerarioCompleto.volta 
+              : itinerarioCompleto.ida;
+          
+          if (itinerario == null) {
+            return edge.lineName; // No itinerary = invalid
+          }
+          
+          // Find the boarding stop in the itinerary and calculate distance
+          double dist = 0;
+          bool found = false;
+          for (var p in itinerario.pontos) {
+            if (p.logId == boardingStopId) {
+              found = true;
+              break;
+            }
+            dist += p.distanciaPercorrida;
+          }
+          
+          if (!found) {
+            return edge.lineName; // Stop not in itinerary = invalid
+          }
+          
+          // Calculate wait time at this transfer point
+          final waitMinutes = await _calculateNextBusWaitTime(
+            lineNum,
+            dateStr,
+            itinerario.pontoInicial,
+            dist,
+            currentMinutes,
+          );
+          
+          if (waitMinutes == null || waitMinutes > 45) {
+            return edge.lineName; // No bus or wait > 45min = invalid
+          }
+          
+          // Add wait time to current time
+          currentMinutes += waitMinutes;
+        }
+      }
+      
+      // Add travel time for this segment
+      int travelMinutes = TimeUtils.calculateTravelTimeMinutes(edge.weight);
+      currentMinutes += travelMinutes;
+      
+      previousLine = edge.lineName;
+    }
+    
+    return null; // All segments valid
   }
 
   Future<int?> _calculateNextBusWaitTime(
@@ -273,9 +361,7 @@ class BusProvider with ChangeNotifier {
       // Find matching control point
       HorarioPosto? matchingPosto;
       for (var posto in horarios) {
-        if (posto.postoControle.toLowerCase() == pontoInicial.toLowerCase() ||
-            posto.postoControle.toLowerCase().contains(pontoInicial.toLowerCase()) ||
-            pontoInicial.toLowerCase().contains(posto.postoControle.toLowerCase())) {
+        if (_areNamesSimilar(posto.postoControle, pontoInicial)) {
           matchingPosto = posto;
           break;
         }
@@ -314,5 +400,35 @@ class BusProvider with ChangeNotifier {
       print('Error getting schedule for wait time: $e');
     }
     return null;
+  }
+
+  bool _areNamesSimilar(String name1, String name2) {
+    final n1 = _normalizeName(name1);
+    final n2 = _normalizeName(name2);
+    
+    if (n1.contains(n2) || n2.contains(n1)) return true;
+    
+    final words1 = n1.split(' ').where((w) => w.length > 2).toSet();
+    final words2 = n2.split(' ').where((w) => w.length > 2).toSet();
+    
+    if (words1.isEmpty || words2.isEmpty) return false;
+    
+    final intersection = words1.intersection(words2);
+    return intersection.length >= words1.length * 0.6 || 
+           intersection.length >= words2.length * 0.6;
+  }
+
+  String _normalizeName(String name) {
+    return name.toLowerCase()
+        .replaceAll(RegExp(r'^\d+-'), '')
+        .replaceAll(RegExp(r'[áàâãä]'), 'a')
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[íìîï]'), 'i')
+        .replaceAll(RegExp(r'[óòôõö]'), 'o')
+        .replaceAll(RegExp(r'[úùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 }

@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
 import '../providers/bus_provider.dart';
 import '../models/horario.dart';
 import '../models/itinerario.dart';
 import '../models/trip_segment.dart';
+import '../models/favorito.dart';
+import '../services/favorites_service.dart';
 import '../utils/graph_utils.dart';
 import '../utils/time_utils.dart';
 
@@ -68,6 +71,12 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Detalhes da Rota'),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _saveRouteAsFavorite,
+        icon: const Icon(Icons.star),
+        label: const Text('Salvar Rota'),
+        backgroundColor: Colors.amber,
       ),
       body: Column(
         children: [
@@ -211,7 +220,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                       const Icon(Icons.directions_bus, color: Colors.white, size: 18),
                       const SizedBox(width: 6),
                       Text(
-                        segment.lineName,
+                        segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', ''),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -614,6 +623,55 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     final h = (minutes ~/ 60) % 24;
     final m = minutes % 60;
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _saveRouteAsFavorite() async {
+    try {
+      // Serialize route data to JSON
+      final routeData = {
+        'origin': widget.origin,
+        'destination': widget.destination,
+        'totalDistance': widget.totalDistance,
+        'totalTime': widget.totalTime,
+        'segments': widget.segments.map((s) => {
+          'type': s.type,
+          'lineName': s.lineName,
+          'startStreetName': s.startStreetName,
+          'endStreetName': s.endStreetName,
+          'distance': s.distance,
+        }).toList(),
+      };
+
+      final routeDataJson = jsonEncode(routeData);
+
+      // Create favorite
+      final favorito = Favorito(
+        tipo: FavoritoType.ROUTE,
+        entityId: '${widget.origin}_${widget.destination}',
+        displayName: '${widget.origin} → ${widget.destination}',
+        routeData: routeDataJson,
+      );
+
+      await FavoritesService().addFavorite(favorito);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Rota salva nos favoritos!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao salvar rota: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

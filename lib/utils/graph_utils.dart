@@ -69,6 +69,7 @@ class TransportGraph {
     int startId, 
     int endId, {
     Map<String, int>? initialWaitTimes,
+    Set<String>? excludedLines,
   }) {
     final Map<String, GraphEdge> previousEdge = {};
     // Key: State, Value: Previous State Key
@@ -78,8 +79,8 @@ class TransportGraph {
     final pq = PriorityQueue<_State>((a, b) => a.cost.compareTo(b.cost));
 
     // Penalty for switching lines (in meters).
-    // 50,000 meters (50km) to strongly prefer direct routes.
-    const double transferPenalty = 50000.0;
+    // 200,000 meters (200km) to strongly prefer direct routes.
+    const double transferPenalty = 200000.0;
     
     // Speed in m/min for converting wait time to distance penalty
     // Must match TimeUtils.averageSpeedKmh (25.0 km/h)
@@ -121,11 +122,20 @@ class TransportGraph {
       if (neighbors == null) continue;
 
       for (var edge in neighbors) {
+        if (excludedLines != null && excludedLines.contains(edge.lineName)) continue;
+
         double penalty = 0;
         
         // Apply penalty if we are switching lines (and it's not the start)
         if (current.lineName != null && current.lineName != edge.lineName) {
-          penalty = transferPenalty;
+          // Check if it's the same base line (e.g., "051_IDA" vs "051_VOLTA")
+          String currentBase = current.lineName!.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+          String edgeBase = edge.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+          
+          // Only apply penalty if it's a different physical line
+          if (currentBase != edgeBase) {
+            penalty = transferPenalty;
+          }
         }
         
         // Apply initial wait time penalty if we are at the start node
