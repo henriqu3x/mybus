@@ -58,48 +58,53 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     if (route.isEmpty) return [];
 
     final List<TripSegment> segments = [];
-    
+
     // O ponto de partida é a ORIGEM selecionada
-    String currentStartStreet = _origin!.nome; 
+    String currentStartStreet = _origin!.nome;
     String currentLine = route.first.lineName;
     double currentDistance = 0;
-    
+
     // Itera pelas arestas para agrupar
     for (int i = 0; i < route.length; i++) {
       final edge = route[i];
-      
+
       // Se a linha for a mesma, apenas acumula distância
       if (edge.lineName == currentLine) {
         currentDistance += edge.weight;
       } else {
         // MUDANÇA DE LINHA: Finaliza o segmento anterior
-        
+
         // O ponto de desembarque é o destino da ARESTA ANTERIOR (onde a troca ocorre)
         final previousEdge = route[i - 1];
-        
-        segments.add(TripSegment(
-          type: 'BUS',
-          lineName: currentLine,
-          startStreetName: currentStartStreet,
-          endStreetName: previousEdge.destination.name, 
-          distance: currentDistance,
-        ));
-        
+
+        segments.add(
+          TripSegment(
+            type: 'BUS',
+            lineName: currentLine,
+            startStreetName: currentStartStreet,
+            endStreetName: previousEdge.destination.name,
+            distance: currentDistance,
+          ),
+        );
+
         // INICIA NOVO SEGMENTO
         currentLine = edge.lineName;
-        currentStartStreet = previousEdge.destination.name; // Novo ponto de embarque
+        currentStartStreet =
+            previousEdge.destination.name; // Novo ponto de embarque
         currentDistance = edge.weight; // Zera e começa a nova distância
       }
     }
 
     // Adiciona o último segmento, que termina no destino final
-    segments.add(TripSegment(
-      type: 'BUS',
-      lineName: currentLine,
-      startStreetName: currentStartStreet,
-      endStreetName: _destination!.nome, // Ponto final
-      distance: currentDistance,
-    ));
+    segments.add(
+      TripSegment(
+        type: 'BUS',
+        lineName: currentLine,
+        startStreetName: currentStartStreet,
+        endStreetName: _destination!.nome, // Ponto final
+        distance: currentDistance,
+      ),
+    );
 
     return segments;
   }
@@ -156,26 +161,28 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                           );
                         });
                       },
-                      displayStringForOption: (Logradouro option) => option.nome,
+                      displayStringForOption: (Logradouro option) =>
+                          option.nome,
                       onSelected: (Logradouro selection) {
                         setState(() => _origin = selection);
                       },
-                      fieldViewBuilder: (
-                        context,
-                        textEditingController,
-                        focusNode,
-                        onFieldSubmitted,
-                      ) {
-                        return TextField(
-                          controller: textEditingController,
-                          focusNode: focusNode,
-                          decoration: const InputDecoration(
-                            labelText: 'Origem',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.my_location),
-                          ),
-                        );
-                      },
+                      fieldViewBuilder:
+                          (
+                            context,
+                            textEditingController,
+                            focusNode,
+                            onFieldSubmitted,
+                          ) {
+                            return TextField(
+                              controller: textEditingController,
+                              focusNode: focusNode,
+                              decoration: const InputDecoration(
+                                labelText: 'Origem',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.my_location),
+                              ),
+                            );
+                          },
                     ),
                     const SizedBox(height: 16),
                     // Campo de Destino
@@ -190,26 +197,28 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                           );
                         });
                       },
-                      displayStringForOption: (Logradouro option) => option.nome,
+                      displayStringForOption: (Logradouro option) =>
+                          option.nome,
                       onSelected: (Logradouro selection) {
                         setState(() => _destination = selection);
                       },
-                      fieldViewBuilder: (
-                        context,
-                        textEditingController,
-                        focusNode,
-                        onFieldSubmitted,
-                      ) {
-                        return TextField(
-                          controller: textEditingController,
-                          focusNode: focusNode,
-                          decoration: const InputDecoration(
-                            labelText: 'Destino',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.location_on),
-                          ),
-                        );
-                      },
+                      fieldViewBuilder:
+                          (
+                            context,
+                            textEditingController,
+                            focusNode,
+                            onFieldSubmitted,
+                          ) {
+                            return TextField(
+                              controller: textEditingController,
+                              focusNode: focusNode,
+                              decoration: const InputDecoration(
+                                labelText: 'Destino',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.location_on),
+                              ),
+                            );
+                          },
                     ),
                   ],
                 );
@@ -253,18 +262,22 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         child: Text('Nenhuma rota encontrada entre estes pontos.'),
       );
     }
-    
+
     // 1. Agrupa as arestas em segmentos legíveis
-    final segmentedRoute = _groupRouteSegments(_route!); 
+    final segmentedRoute = _groupRouteSegments(_route!);
 
     // 2. Calcula Métricas com base nos Segmentos
-    double totalDistance = segmentedRoute.fold(0.0, (sum, seg) => sum + seg.distance);
+    double totalDistance = segmentedRoute.fold(
+      0.0,
+      (sum, seg) => sum + seg.distance,
+    );
     // Número de trocas é o número de segmentos menos 1
-    int transfers = segmentedRoute.length - 1; 
-    
+    int transfers = segmentedRoute.length - 1;
+
     // Adiciona tempo para trocas (e.g., 10 minutos por troca)
-    int totalTime = TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
-    
+    int totalTime =
+        TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -346,42 +359,148 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         Expanded(
-          // Usa os segmentos agrupados no ListView
-          child: ListView.builder(
-            itemCount: segmentedRoute.length + 1, // +1 para a etapa final
+          child: ListView.separated(
+            itemCount: segmentedRoute.length,
+            separatorBuilder: (context, index) {
+              // Mostrar indicador de transferência após cada segmento (exceto o último)
+              if (index < segmentedRoute.length - 1) {
+                final currentSegment = segmentedRoute[index];
+                final transferLocation = currentSegment.endStreetName;
+                final isTerminalTransfer = transferLocation
+                    .toLowerCase()
+                    .contains('terminal');
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 4,
+                    horizontal: 16,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.arrow_downward,
+                        color: Colors.grey,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isTerminalTransfer
+                                ? Colors.green[100]
+                                : Colors.orange[50],
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isTerminalTransfer
+                                  ? Colors.green
+                                  : Colors.orange,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isTerminalTransfer
+                                    ? Icons.check_circle
+                                    : Icons.attach_money,
+                                color: isTerminalTransfer
+                                    ? Colors.green[700]
+                                    : Colors.orange[700],
+                                size: 18,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                isTerminalTransfer
+                                    ? 'Transferência Gratuita'
+                                    : 'Troca de Ônibus',
+                                style: TextStyle(
+                                  color: isTerminalTransfer
+                                      ? Colors.green[900]
+                                      : Colors.orange[900],
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
             itemBuilder: (context, index) {
               if (index < segmentedRoute.length) {
                 final segment = segmentedRoute[index];
-                
-                return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 8),
-                  child: ListTile(
-                    leading: const Icon(Icons.directions_bus, color: Colors.blue),
-                    title: Text(
-                      'Pegue a Linha ${segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '')}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Embarque: **${segment.startStreetName}**'),
-                        Text('Desembarque: **${segment.endStreetName}**'),
-                        Text(
-                          'Trajeto: ${(segment.distance / 1000).toStringAsFixed(1)} km',
-                          style: const TextStyle(color: Colors.grey),
+                final isLastSegment = index == segmentedRoute.length - 1;
+
+                return Column(
+                  children: [
+                    Card(
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.directions_bus,
+                          color: Colors.blue,
                         ),
-                      ],
+                        title: Text(
+                          'Pegue a Linha ${segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '')}',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Embarque: **${segment.startStreetName}**'),
+                            Text('Desembarque: **${segment.endStreetName}**'),
+                            Text(
+                              'Trajeto: ${(segment.distance / 1000).toStringAsFixed(1)} km',
+                              style: const TextStyle(color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-                );
-              } else {
-                // Etapa final (Chegada)
-                return ListTile(
-                  leading: const Icon(Icons.flag, color: Colors.green),
-                  title: const Text('Chegada'),
-                  subtitle: Text('Você chegou ao seu destino: **${_destination!.nome}**'),
+                    // Mostrar chegada após o último segmento
+                    if (isLastSegment)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 16,
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.arrow_downward,
+                              color: Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: ListTile(
+                                leading: const Icon(
+                                  Icons.flag,
+                                  color: Colors.green,
+                                ),
+                                title: const Text('Chegada'),
+                                subtitle: Text(
+                                  'Você chegou ao seu destino: **${_destination!.nome}**',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 );
               }
+              return const SizedBox.shrink();
             },
           ),
         ),

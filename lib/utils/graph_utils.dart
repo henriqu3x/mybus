@@ -66,7 +66,7 @@ class TransportGraph {
   }
 
   List<GraphEdge>? findShortestPath(
-    int startId, 
+    int startId,
     int endId, {
     Map<String, int>? initialWaitTimes,
     Set<String>? excludedLines,
@@ -79,9 +79,11 @@ class TransportGraph {
     final pq = PriorityQueue<_State>((a, b) => a.cost.compareTo(b.cost));
 
     // Penalty for switching lines (in meters).
-    // 200,000 meters (200km) to strongly prefer direct routes.
-    const double transferPenalty = 200000.0;
-    
+    // Terminal transfers are free, so they get a reduced penalty (50,000m)
+    // Street transfers require a new fare, so they get a higher penalty (200,000m)
+    const double terminalTransferPenalty = 50000.0;
+    const double streetTransferPenalty = 200000.0;
+
     // Speed in m/min for converting wait time to distance penalty
     // Must match TimeUtils.averageSpeedKmh (25.0 km/h)
     const double speedMetersPerMinute = (25.0 * 1000) / 60;
@@ -122,22 +124,35 @@ class TransportGraph {
       if (neighbors == null) continue;
 
       for (var edge in neighbors) {
-        if (excludedLines != null && excludedLines.contains(edge.lineName)) continue;
+        if (excludedLines != null && excludedLines.contains(edge.lineName))
+          continue;
 
         double penalty = 0;
-        
+
         // Apply penalty if we are switching lines (and it's not the start)
         if (current.lineName != null && current.lineName != edge.lineName) {
           // Check if it's the same base line (e.g., "051_IDA" vs "051_VOLTA")
-          String currentBase = current.lineName!.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
-          String edgeBase = edge.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
-          
+          String currentBase = current.lineName!
+              .replaceAll('_IDA', '')
+              .replaceAll('_VOLTA', '');
+          String edgeBase = edge.lineName
+              .replaceAll('_IDA', '')
+              .replaceAll('_VOLTA', '');
+
           // Only apply penalty if it's a different physical line
           if (currentBase != edgeBase) {
-            penalty = transferPenalty;
+            // Check if the transfer is happening at a terminal
+            final currentNode = nodes[current.nodeId];
+            if (currentNode != null && _isTerminal(currentNode.name)) {
+              // Terminal transfers are free, so use reduced penalty
+              penalty = terminalTransferPenalty;
+            } else {
+              // Street transfers require new fare, so use higher penalty
+              penalty = streetTransferPenalty;
+            }
           }
         }
-        
+
         // Apply initial wait time penalty if we are at the start node
         if (current.nodeId == startId && initialWaitTimes != null) {
           // Check if we have a wait time for this line
@@ -176,6 +191,12 @@ class TransportGraph {
     }
 
     return path;
+  }
+
+  /// Helper method to check if a node is a terminal.
+  /// Terminals are identified by the word "Terminal" in their name.
+  bool _isTerminal(String nodeName) {
+    return nodeName.toLowerCase().contains('terminal');
   }
 }
 

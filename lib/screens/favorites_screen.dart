@@ -62,7 +62,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> with SingleTickerProv
           controller: _tabController,
           tabs: const [
             Tab(icon: Icon(Icons.directions_bus), text: 'Linhas'),
-            Tab(icon: Icon(Icons.place), text: 'Paradas'),
+            // Tab(icon: Icon(Icons.place), text: 'Paradas'),
             Tab(icon: Icon(Icons.route), text: 'Rotas'),
           ],
         ),
