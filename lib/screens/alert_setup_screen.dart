@@ -27,8 +27,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
   @override
   void initState() {
     super.initState();
-    NotificationService().init();
-    NotificationService().requestPermissions();
+    // NotificationService is now initialized in main.dart
   }
 
   Future<void> _loadItinerary(Linha linha) async {

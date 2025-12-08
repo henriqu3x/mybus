@@ -32,12 +32,14 @@ class NotificationService {
   }
 
   // 3. Solicitação de Permissões (necessária para Android 13+)
-  Future<void> requestPermissions() async {
+  Future<bool> requestPermissions() async {
     final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
         flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    await androidImplementation?.requestNotificationsPermission();
+    final bool? granted = await androidImplementation?.requestNotificationsPermission();
+    
+    return granted ?? false;
   }
 
   // 4. Agendamento da Notificação

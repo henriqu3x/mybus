@@ -1,0 +1,51 @@
+requisição: http://router.project-osrm.org/route/v1/driving/13.388860,52.517037;13.397634,52.529407;13.428555,52.523219?overview=full
+
+resposta: 
+{
+  "code": "Ok",
+  "routes": [
+    {
+      "legs": [
+        {
+          "steps": [],
+          "weight": 263.8,
+          "summary": "",
+          "duration": 260.3,
+          "distance": 1888
+        },
+        {
+          "steps": [],
+          "weight": 370.8,
+          "summary": "",
+          "duration": 370.8,
+          "distance": 2845.2
+        }
+      ],
+      "weight_name": "routability",
+      "geometry": "mfp_Ic_vpAWBSBE?C@C?E?c@FsALC@M@K@C?uANK@S@OOG?K@c@DC?wBPG@C@QJI@mAJ??UBEH?@A?Q@G@E@U@m@FG@I@aBNG@k@FM@OBaBNG@M@mAFc@@}@Fu@DG?a@B[@I?gAF}@JA?[Do@FoCXSBO@ODA@UDA?ODE@GBC?uBNE?OAKCE]AK[mCCSGi@[iCUaBAKAOSsAE[i@mEa@eDAMAAAMAMAEGg@AKQuACOKy@E_@G[Gc@]wBw@aFKw@M{@k@qDCMAKIq@?KAO?MIuDI_D?GAk@AWCaAEuB@U@U?MCs@?I?IASAg@ASMaF?OAi@?c@@c@Du@r@cH@U@I@G@I?GVgCf@cFRyBf@uE@KFg@BM@OFa@Dc@BMFa@Dc@@GT_CDa@BWBSNy@Ha@RiAdBoJHc@DOh@yAHSf@aADIR_@JS@C@A@CJSWWEECEECOQe@a@CCUQOKq@i@_Au@{@y@GESO?_@?C?C?i@CaACy@IsCAKA[MaE?SKgDCi@?Q?YFc@b@gDNg@D]T{ABIHm@FY@GBUJk@@IHcA?c@?QAQG]JKDC@ADCJODMDOFOJc@Pm@BKTw@La@\\eANg@L_@DOJ[DMJQn@kANYLUVg@`@q@P]Ta@HQR]b@y@`@s@Ve@JSHOR_@LUFIFIFEPGFAL?J@HBFBr@XNH^NHDTJNFTRRJd@LXFB@B?J@J@@X?L?F@jA@dB",
+      "weight": 634.6,
+      "duration": 631.1,
+      "distance": 4733.2
+    }
+  ],
+  "waypoints": [
+    {
+      "hint": "cwEKgJvinYUXAAAABQAAAAAAAAAdAAAAuFtKQYXNK0AAAAAAIMuBQQsAAAADAAAAAAAAAA8AAAD8GgEAFEzMAKpYIQM8TMwArVghAwAA3woAAAAA",
+      "location": [13.38882, 52.517034],
+      "name": "Friedrichstraße",
+      "distance": 2.73531597
+    },
+    {
+      "hint": "d9DegWBxj4cGAAAACQAAAAAAAAB3AAAAz-ONQIv-tkAAAAAAGuWEQgYAAAAJAAAAAAAAAHcAAAD8GgEAfm7MABmJIQOCbswA_4ghAwAATwUAAAAA",
+      "location": [13.39763, 52.529433],
+      "name": "Torstraße",
+      "distance": 2.905919634
+    },
+    {
+      "hint": "QS0YgP___38fAAAAUQAAACYAAABSAAAAeosKQlNOX0Ki6yZCakq4Qh8AAABRAAAAJgAAAFIAAAD8GgEASufMAOdwIQNL58wA03AhAwgAvxAAAAAA",
+      "location": [13.428554, 52.523239],
+      "name": "Platz der Vereinten Nationen",
+      "distance": 2.226580806
+    }
+  ]
+}
