@@ -65,8 +65,30 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     print("DEBUG: Segments count: ${widget.segments.length}");
     final busSegments = widget.segments
         .where((s) => s.type == 'BUS')
-        // Ajuste conforme sua nomenclatura
-        .map((s) => s.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '').trim()) 
+        .map((s) {
+          // Convert from graph format to KML format
+          // Graph: "421-Lagoa/Parangaba/Montese/Centro_IDA"
+          // KML: "421 - Lagoa/Parangaba/Montese/Centro - Ida"
+          String lineName = s.lineName;
+          String direction = '';
+          
+          // Extract direction
+          if (lineName.endsWith('_IDA')) {
+            direction = ' - Ida';
+            lineName = lineName.substring(0, lineName.length - 4);
+          } else if (lineName.endsWith('_VOLTA')) {
+            direction = ' - Volta';
+            lineName = lineName.substring(0, lineName.length - 6);
+          }
+          
+          // Replace first dash with " - " (e.g., "421-Description" -> "421 - Description")
+          int firstDash = lineName.indexOf('-');
+          if (firstDash != -1) {
+            lineName = lineName.substring(0, firstDash) + ' - ' + lineName.substring(firstDash + 1);
+          }
+          
+          return lineName + direction;
+        })
         .toList();
         
     print("DEBUG: Bus Segments to find: $busSegments");

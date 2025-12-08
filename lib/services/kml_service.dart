@@ -20,39 +20,73 @@ class KmlService {
   /// Busca as coordenadas para uma ou mais linhas.
   /// Retorna uma lista de listas de coordenadas [latitude, longitude].
   /// O formato de retorno é pensado para fácil injeção no JavaScript do OpenLayers.
-  Future<List<List<List<double>>>> getCoordinatesForLines(List<String> lineNames) async {
+  Future<List<List<List<double>>>> getCoordinatesForLines(
+    List<String> lineNames,
+  ) async {
     await loadKmlData();
     if (_document == null) return [];
 
     final List<List<List<double>>> allRoutesCoordinates = [];
 
     final placemarks = _document!.findAllElements('Placemark');
-    
+
     for (var lineName in lineNames) {
-      // Normalização para busca: remove prefixos/sufixos comuns se necessário
-      // O nome no KML geralmente é "CODE - NOME..."
       final cleanLineName = lineName.trim();
 
+      // Extract line code and direction for flexible matching
+      // Example: "371 - Parangaba/José Bastos/Centro - Ida"
+      String? lineCode;
+      String? direction;
+
+      final parts = cleanLineName.split(' - ');
+      if (parts.isNotEmpty) {
+        lineCode = parts[0]; // "371"
+        if (parts.length >= 3) {
+          direction = parts.last; // "Ida" or "Volta"
+        }
+      }
+
       try {
-        final placemark = placemarks.firstWhere((element) {
-          final nameElement = element.getElement('name');
-          if (nameElement == null) return false;
-          // DEBUG: Print comparisons for failed matches if needed
-          // print('Checking KML Line: ${nameElement.innerText} vs $cleanLineName');
-          
-          return nameElement.innerText.contains(cleanLineName);
-        }, orElse: () {
-          print('DEBUG: No match found for line: "$cleanLineName" in KML.');
-          // Return a dummy xml element or throw to trigger catch, but cannot return null here easily if type is XmlElement
-          throw StateError('No match');
-        });
-        
+        final placemark = placemarks.firstWhere(
+          (element) {
+            final nameElement = element.getElement('name');
+            if (nameElement == null) return false;
+
+            final kmlName = nameElement.innerText;
+
+            // Try flexible matching: line code at start + direction at end
+            if (lineCode != null && direction != null) {
+              final startsWithCode = kmlName.startsWith(lineCode + ' - ');
+              final endsWithDirection = kmlName.endsWith(' - $direction');
+              if (startsWithCode && endsWithDirection) {
+                print(
+                  'DEBUG: Flexible match found: "$kmlName" matches "$cleanLineName"',
+                );
+                return true;
+              }
+            }
+
+            // Fallback to exact match
+            return kmlName == cleanLineName;
+          },
+          orElse: () {
+            print('DEBUG: No match found for line: "$cleanLineName" in KML.');
+            print(
+              'DEBUG: Tried matching with code: "$lineCode" and direction: "$direction"',
+            );
+            throw StateError('No match');
+          },
+        );
+
         // If we get here, we found a placemark
         print('DEBUG: Found Placemark for $cleanLineName');
 
         final lineString = placemark.findAllElements('LineString').firstOrNull;
         if (lineString != null) {
-          final coordinatesText = lineString.getElement('coordinates')?.innerText.trim();
+          final coordinatesText = lineString
+              .getElement('coordinates')
+              ?.innerText
+              .trim();
           if (coordinatesText != null) {
             final List<List<double>> routeCoords = [];
             final points = coordinatesText.split(' ');
@@ -68,15 +102,17 @@ class KmlService {
             }
             if (routeCoords.isNotEmpty) {
               allRoutesCoordinates.add(routeCoords);
-              print('DEBUG: Extracted ${routeCoords.length} points for $cleanLineName');
+              print(
+                'DEBUG: Extracted ${routeCoords.length} points for $cleanLineName',
+              );
             } else {
               print('DEBUG: No valid coordinates parsed for $cleanLineName');
             }
           } else {
-             print('DEBUG: No coordinates text found for $cleanLineName');
+            print('DEBUG: No coordinates text found for $cleanLineName');
           }
         } else {
-           print('DEBUG: No LineString found for $cleanLineName');
+          print('DEBUG: No LineString found for $cleanLineName');
         }
       } catch (e) {
         if (e is! StateError) {
