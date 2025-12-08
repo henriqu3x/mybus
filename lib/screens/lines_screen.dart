@@ -9,14 +9,14 @@ import 'route_planner_screen.dart';
 import 'alert_setup_screen.dart';
 import 'favorites_screen.dart';
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class LinesScreen extends StatefulWidget {
+  const LinesScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<LinesScreen> createState() => _LinesScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _LinesScreenState extends State<LinesScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Favorito> _favoritesLines = [];
   bool _loadingFavorites = true;
@@ -27,14 +27,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadFavorites();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<BusProvider>(context, listen: false);
-      provider.fetchLinhas();
-      // Start building graph in background for Route Planner pre-load
-      provider.buildGraph();
+      if (provider.linhas.isEmpty) {
+        provider.fetchLinhas();
+      }
     });
   }
 
   Future<void> _loadFavorites() async {
-    final favorites = await FavoritesService().getFavoritesByType(FavoritoType.LINE);
+    final favorites = await FavoritesService().getFavoritesByType(
+      FavoritoType.LINE,
+    );
     if (mounted) {
       setState(() {
         _favoritesLines = favorites;
@@ -47,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('No Ponto'),
+        title: const Text('Linhas de Ônibus'),
         actions: [
           IconButton(
             icon: const Icon(Icons.star),
@@ -58,12 +60,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 MaterialPageRoute(
                   builder: (context) => const FavoritesScreen(),
                 ),
-              ).then((_) => _loadFavorites()); // Reload favorites when returning
+              ).then((_) => _loadFavorites());
             },
           ),
+          // Route Planner button removed as it's accessible from Home Map.
+          // Or we can keep it for convenience. Let's keep it but maybe as secondary.
           IconButton(
-            icon: const Icon(Icons.map),
-            tooltip: 'Planejador de Rotas',
+            icon: const Icon(Icons.map), // Route Planner icon
+            tooltip: 'Planejador',
             onPressed: () {
               Navigator.push(
                 context,
@@ -102,9 +106,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'Favoritos',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
@@ -125,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const Divider(height: 1),
           ],
-          
+
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -159,26 +162,42 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Consumer<BusProvider>(
               builder: (context, provider, child) {
                 if (provider.linhas.isEmpty) {
-                  return const Center(child: CircularProgressIndicator());
+                  if (provider.isLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  // If not loading and empty, maybe trigger fetch or show empty state
+                  if (!provider.isLoading && provider.error != null) {
+                    return Center(child: Text(provider.error!));
+                  }
                 }
-                
-                // Prioritize favorites in search results
+
+                // Prioritize favorites
                 final allLinhas = provider.linhas;
-                final favoriteIds = _favoritesLines.map((f) => f.entityId).toSet();
-                
-                // Split into favorites and non-favorites
-                final favoriteLinhas = allLinhas.where((l) => favoriteIds.contains(l.numero.toString())).toList();
-                final nonFavoriteLinhas = allLinhas.where((l) => !favoriteIds.contains(l.numero.toString())).toList();
-                
-                // Combine: favorites first
+                final favoriteIds = _favoritesLines
+                    .map((f) => f.entityId)
+                    .toSet();
+
+                final favoriteLinhas = allLinhas
+                    .where((l) => favoriteIds.contains(l.numero.toString()))
+                    .toList();
+                final nonFavoriteLinhas = allLinhas
+                    .where((l) => !favoriteIds.contains(l.numero.toString()))
+                    .toList();
+
                 final sortedLinhas = [...favoriteLinhas, ...nonFavoriteLinhas];
-                
+
+                if (sortedLinhas.isEmpty && !provider.isLoading) {
+                  return const Center(child: Text("Nenhuma linha encontrada."));
+                }
+
                 return ListView.builder(
                   itemCount: sortedLinhas.length,
                   itemBuilder: (context, index) {
                     final linha = sortedLinhas[index];
-                    final isFavorite = favoriteIds.contains(linha.numero.toString());
-                    
+                    final isFavorite = favoriteIds.contains(
+                      linha.numero.toString(),
+                    );
+
                     return Card(
                       margin: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -246,17 +265,21 @@ class _HomeScreenState extends State<HomeScreen> {
       margin: const EdgeInsets.only(right: 12),
       child: InkWell(
         onTap: () async {
-          // Find the linha by entityId (which is linha.numero)
           final provider = Provider.of<BusProvider>(context, listen: false);
           final linhaNumero = int.tryParse(favorito.entityId);
           if (linhaNumero == null) return;
-          
-          final linha = provider.linhas.cast<Linha?>().firstWhere(
-            (l) => l?.numero == linhaNumero,
-            orElse: () => null,
+
+          final linha = provider.linhas.firstWhere(
+            (l) => l.numero == linhaNumero,
+            orElse: () => Linha(
+              numero: 0,
+              nome: 'Desconhecida',
+              tipoLinha: '',
+              numeroNome: '',
+            ), // Safe fallback
           );
-          
-          if (linha != null) {
+
+          if (linha.numero != 0) {
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -279,10 +302,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     radius: 16,
                     child: Text(
                       favorito.entityId,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 10),
                     ),
                   ),
                   IconButton(
@@ -290,7 +310,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(),
                     onPressed: () async {
-                      await FavoritesService().removeFavorite(favorito.favoritoId);
+                      await FavoritesService().removeFavorite(
+                        favorito.favoritoId,
+                      );
                       _loadFavorites();
                     },
                   ),

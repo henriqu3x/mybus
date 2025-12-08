@@ -49,7 +49,10 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     for (var segment in widget.segments) {
       final lineNumber = _extractLineNumber(segment.lineName);
       if (lineNumber != null) {
-        _scheduleCache[segment.lineName] = provider.getHorarios(lineNumber, today);
+        _scheduleCache[segment.lineName] = provider.getHorarios(
+          lineNumber,
+          today,
+        );
         _itineraryCache[segment.lineName] = provider.getItinerario(lineNumber);
       }
     }
@@ -66,12 +69,22 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final transfers = widget.segments.length - 1;
+    // Calculate transfers ignoring same-line direction changes (IDA/VOLTA)
+    int transfers = 0;
+    for (int i = 0; i < widget.segments.length - 1; i++) {
+      final current = widget.segments[i].lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '');
+      final next = widget.segments[i + 1].lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '');
+      if (current != next) {
+        transfers++;
+      }
+    }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Detalhes da Rota'),
-      ),
+      appBar: AppBar(title: const Text('Detalhes da Rota')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _saveRouteAsFavorite,
         icon: const Icon(Icons.star),
@@ -86,9 +99,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
               color: Colors.blue[50],
-              border: Border(
-                bottom: BorderSide(color: Colors.grey[300]!),
-              ),
+              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,7 +150,8 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                     _buildSummaryItem(
                       icon: Icons.straighten,
                       label: 'Distância',
-                      value: '${(widget.totalDistance / 1000).toStringAsFixed(1)} km',
+                      value:
+                          '${(widget.totalDistance / 1000).toStringAsFixed(1)} km',
                     ),
                     _buildSummaryItem(
                       icon: Icons.swap_horiz,
@@ -175,19 +187,10 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
       children: [
         Icon(icon, size: 20, color: Colors.blue),
         const SizedBox(height: 4),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 12,
-            color: Colors.grey,
-          ),
-        ),
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         Text(
           value,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -196,6 +199,20 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   Widget _buildSegmentCard(TripSegment segment, int index) {
     final scheduleFuture = _scheduleCache[segment.lineName];
     final itineraryFuture = _itineraryCache[segment.lineName];
+
+    // Check if next segment is a continuation of the same line
+    bool isNextSameLine = false;
+    if (index < widget.segments.length - 1) {
+      final currentBase = segment.lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '');
+      final nextBase = widget.segments[index + 1].lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '');
+      if (currentBase == nextBase) {
+        isNextSameLine = true;
+      }
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -209,7 +226,10 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.blue,
                     borderRadius: BorderRadius.circular(20),
@@ -217,10 +237,16 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.directions_bus, color: Colors.white, size: 18),
+                      const Icon(
+                        Icons.directions_bus,
+                        color: Colors.white,
+                        size: 18,
+                      ),
                       const SizedBox(width: 6),
                       Text(
-                        segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', ''),
+                        segment.lineName
+                            .replaceAll('_IDA', '')
+                            .replaceAll('_VOLTA', ''),
                         style: const TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
@@ -240,7 +266,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Boarding point
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -256,11 +282,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                         border: Border.all(color: Colors.white, width: 2),
                       ),
                     ),
-                    Container(
-                      width: 2,
-                      height: 40,
-                      color: Colors.grey[300],
-                    ),
+                    Container(width: 2, height: 40, color: Colors.grey[300]),
                   ],
                 ),
                 const SizedBox(width: 12),
@@ -288,7 +310,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                 ),
               ],
             ),
-            
+
             // Alighting point
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -297,7 +319,9 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Colors.red,
+                    color: isNextSameLine
+                        ? Colors.orange
+                        : Colors.red, // Orange for continuation
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.white, width: 2),
                   ),
@@ -307,11 +331,13 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Desembarque',
+                      Text(
+                        isNextSameLine ? 'Continuar no ônibus' : 'Desembarque',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
+                          color: isNextSameLine
+                              ? Colors.orange[800]
+                              : Colors.grey,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -322,21 +348,29 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                           fontWeight: FontWeight.w500,
                         ),
                       ),
+                      if (isNextSameLine)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4.0),
+                          child: Text(
+                            "(Mudança de sentido da linha)",
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              color: Colors.orange[800],
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ],
             ),
-            
+
             const Divider(height: 24),
-            
+
             // Arrival time prediction
             if (scheduleFuture != null && itineraryFuture != null)
-              _buildArrivalPrediction(
-                segment,
-                scheduleFuture,
-                itineraryFuture,
-              ),
+              _buildArrivalPrediction(segment, scheduleFuture, itineraryFuture),
           ],
         ),
       ),
@@ -395,7 +429,8 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         final arrivals = _calculateNextArrivals(
           horarios,
           match.distance,
-          match.pontoInicial, // Use the itinerary's start point to match control point
+          match
+              .pontoInicial, // Use the itinerary's start point to match control point
           maxCount: 5,
         );
 
@@ -435,10 +470,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   const SizedBox(width: 8),
                   Text(
                     'Próximo ônibus em ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[700],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   ),
                   Text(
                     '$minutesUntilArrival min',
@@ -460,7 +492,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                 ],
               ),
             ),
-            
+
             if (arrivals.length > 1) ...[
               const SizedBox(height: 12),
               const Text(
@@ -506,20 +538,20 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
       for (int i = 0; i < itinerario.pontos.length; i++) {
         final ponto = itinerario.pontos[i];
-        
+
         // Check for start point match
         if (startIndex == null) {
-           if (_areNamesSimilar(ponto.nome, startPointName)) {
-              startIndex = i;
-              startDist = currentDist;
-           }
+          if (_areNamesSimilar(ponto.nome, startPointName)) {
+            startIndex = i;
+            startDist = currentDist;
+          }
         }
-        
+
         // Check for end point match
         if (endIndex == null) {
-           if (_areNamesSimilar(ponto.nome, endPointName)) {
-              endIndex = i;
-           }
+          if (_areNamesSimilar(ponto.nome, endPointName)) {
+            endIndex = i;
+          }
         }
 
         currentDist += ponto.distanciaPercorrida;
@@ -536,9 +568,9 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   List<int> _calculateNextArrivals(
     List<HorarioPosto> horarios,
     double distanceMeters,
-    String pontoInicial, // Ponto inicial do itinerário correspondente
-    {int maxCount = 5}
-  ) {
+    String pontoInicial, { // Ponto inicial do itinerário correspondente
+    int maxCount = 5,
+  }) {
     final now = TimeOfDay.now();
     final currentMinutes = now.hour * 60 + now.minute;
     final travelMinutes = TimeUtils.calculateTravelTimeMinutes(distanceMeters);
@@ -547,22 +579,22 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
     // Encontrar o posto de controle que corresponde ao ponto inicial do itinerário
     HorarioPosto? matchingPosto;
-    
+
     for (var posto in horarios) {
       if (_areNamesSimilar(posto.postoControle, pontoInicial)) {
         matchingPosto = posto;
         break;
       }
     }
-    
+
     // Fallback: se não encontrar, tenta usar o primeiro se houver apenas um, ou logar erro
     if (matchingPosto == null && horarios.isNotEmpty) {
-       // Se só tem um posto, usa ele (melhor que nada)
-       if (horarios.length == 1) {
-         matchingPosto = horarios.first;
-       }
+      // Se só tem um posto, usa ele (melhor que nada)
+      if (horarios.length == 1) {
+        matchingPosto = horarios.first;
+      }
     }
-    
+
     if (matchingPosto == null) {
       return arrivalTimes;
     }
@@ -588,33 +620,40 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   bool _areNamesSimilar(String name1, String name2) {
     final n1 = _normalizeName(name1);
     final n2 = _normalizeName(name2);
-    
+
     // 1. Direct containment check (fast path)
     if (n1.contains(n2) || n2.contains(n1)) return true;
-    
+
     // 2. Token-based matching only as fallback (slower but more flexible)
     final words1 = n1.split(' ').where((w) => w.length > 2).toSet();
     final words2 = n2.split(' ').where((w) => w.length > 2).toSet();
-    
+
     if (words1.isEmpty || words2.isEmpty) return false;
-    
+
     final intersection = words1.intersection(words2);
-    
+
     // If 60% or more words match, consider it similar
-    return intersection.length >= words1.length * 0.6 || 
-           intersection.length >= words2.length * 0.6;
+    return intersection.length >= words1.length * 0.6 ||
+        intersection.length >= words2.length * 0.6;
   }
 
   String _normalizeName(String name) {
-    return name.toLowerCase()
-        .replaceAll(RegExp(r'^\d+-'), '') // Remove numeric prefixes like "01-", "13-"
+    return name
+        .toLowerCase()
+        .replaceAll(
+          RegExp(r'^\d+-'),
+          '',
+        ) // Remove numeric prefixes like "01-", "13-"
         .replaceAll(RegExp(r'[áàâãä]'), 'a')
         .replaceAll(RegExp(r'[éèêë]'), 'e')
         .replaceAll(RegExp(r'[íìîï]'), 'i')
         .replaceAll(RegExp(r'[óòôõö]'), 'o')
         .replaceAll(RegExp(r'[úùûü]'), 'u')
         .replaceAll(RegExp(r'[ç]'), 'c')
-        .replaceAll(RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'), '') // Remove prepositions
+        .replaceAll(
+          RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'),
+          '',
+        ) // Remove prepositions
         .replaceAll(RegExp(r'\s+'), ' ') // Collapse spaces
         .trim();
   }
@@ -633,13 +672,17 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         'destination': widget.destination,
         'totalDistance': widget.totalDistance,
         'totalTime': widget.totalTime,
-        'segments': widget.segments.map((s) => {
-          'type': s.type,
-          'lineName': s.lineName,
-          'startStreetName': s.startStreetName,
-          'endStreetName': s.endStreetName,
-          'distance': s.distance,
-        }).toList(),
+        'segments': widget.segments
+            .map(
+              (s) => {
+                'type': s.type,
+                'lineName': s.lineName,
+                'startStreetName': s.startStreetName,
+                'endStreetName': s.endStreetName,
+                'distance': s.distance,
+              },
+            )
+            .toList(),
       };
 
       final routeDataJson = jsonEncode(routeData);
@@ -678,7 +721,6 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 class _ItineraryMatch {
   final double distance;
   final String pontoInicial;
-  
+
   _ItineraryMatch(this.distance, this.pontoInicial);
 }
-

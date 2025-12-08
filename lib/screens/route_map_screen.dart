@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart'; // Import necessário para kIsWeb
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import '../models/trip_segment.dart'; // Assumindo que este caminho está correto
-import '../services/kml_service.dart'; // Assumindo que este caminho está correto
+import '../models/trip_segment.dart';
+import '../services/kml_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
   final List<TripSegment> segments;
@@ -29,7 +29,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   void _initController() {
     late final PlatformWebViewControllerCreationParams params;
-    
+
     if (WebViewPlatform.instance == null) {
       params = const PlatformWebViewControllerCreationParams();
     } else {
@@ -42,7 +42,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     if (!kIsWeb) {
       controller.setJavaScriptMode(JavaScriptMode.unrestricted);
       controller.setBackgroundColor(const Color(0x00000000));
-      
+
       // Only set navigation delegate on non-web platforms to avoid unimplemented errors
       controller.setNavigationDelegate(
         NavigationDelegate(
@@ -62,51 +62,66 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
 
   Future<void> _loadMapData() async {
     // Filtrar apenas segmentos de ônibus
-    print("DEBUG: Segments count: ${widget.segments.length}");
-    final busSegments = widget.segments
-        .where((s) => s.type == 'BUS')
-        .map((s) {
-          // Convert from graph format to KML format
-          // Graph: "421-Lagoa/Parangaba/Montese/Centro_IDA"
-          // KML: "421 - Lagoa/Parangaba/Montese/Centro - Ida"
-          String lineName = s.lineName;
-          String direction = '';
-          
-          // Extract direction
-          if (lineName.endsWith('_IDA')) {
-            direction = ' - Ida';
-            lineName = lineName.substring(0, lineName.length - 4);
-          } else if (lineName.endsWith('_VOLTA')) {
-            direction = ' - Volta';
-            lineName = lineName.substring(0, lineName.length - 6);
-          }
-          
-          // Replace first dash with " - " (e.g., "421-Description" -> "421 - Description")
-          int firstDash = lineName.indexOf('-');
-          if (firstDash != -1) {
-            lineName = lineName.substring(0, firstDash) + ' - ' + lineName.substring(firstDash + 1);
-          }
-          
-          return lineName + direction;
-        })
-        .toList();
-        
-    print("DEBUG: Bus Segments to find: $busSegments");
+    final busSegments = widget.segments.where((s) => s.type == 'BUS').map((s) {
+      // Convert from graph format to KML format
+      // Graph: "421-Lagoa/Parangaba/Montese/Centro_IDA"
+      // KML: "421 - Lagoa/Parangaba/Montese/Centro - Ida"
+      String lineName = s.lineName;
+      String direction = '';
+
+      // Extract direction
+      if (lineName.endsWith('_IDA')) {
+        direction = ' - Ida';
+        lineName = lineName.substring(0, lineName.length - 4);
+      } else if (lineName.endsWith('_VOLTA')) {
+        direction = ' - Volta';
+        lineName = lineName.substring(0, lineName.length - 6);
+      }
+
+      // Replace first dash with " - " (e.g., "421-Description" -> "421 - Description")
+      int firstDash = lineName.indexOf('-');
+      if (firstDash != -1) {
+        lineName =
+            lineName.substring(0, firstDash) +
+            ' - ' +
+            lineName.substring(firstDash + 1);
+      }
+
+      return lineName + direction;
+    }).toList();
 
     // Buscar coordenadas no KML
     // Retorna List<List<List<double>>> -> Lista de Rotas -> Lista de Coordenadas [lon, lat]
-    final routesCoordinates = await _kmlService.getCoordinatesForLines(busSegments);
-    
-    print("DEBUG: Found ${routesCoordinates.length} route paths");
+    final routesCoordinates = await _kmlService.getCoordinatesForLines(
+      busSegments,
+    );
 
-    _loadHtmlContent(routesCoordinates);
+    // Prepare data with colors
+    final List<Map<String, dynamic>> themedRoutes = [];
+    final List<String> colors = [
+      '#0000FF', // Blue (First segment)
+      '#FF4500', // OrangeRed (Second segment - good contrast)
+      '#008000', // Green
+      '#800080', // Purple
+    ];
+
+    for (int i = 0; i < routesCoordinates.length; i++) {
+      themedRoutes.add({
+        'coordinates': routesCoordinates[i],
+        'color': colors[i % colors.length], // Cycle through colors
+        'label': 'Segment ${i + 1}',
+      });
+    }
+
+    _loadHtmlContent(themedRoutes);
   }
 
-  void _loadHtmlContent(List<List<List<double>>> routes) {
+  void _loadHtmlContent(List<Map<String, dynamic>> routesWithTheme) {
     // Converter rotas para JSON para injetar no JS
-    final routesJson = jsonEncode(routes);
+    final routesJson = jsonEncode(routesWithTheme);
 
-    final htmlContent = '''
+    final htmlContent =
+        '''
       <!DOCTYPE html>
       <html>
       <head>
@@ -124,6 +139,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         <div id="map"></div>
         <script>
           // Dados das rotas injetados pelo Dart
+          // Structure: [{coordinates: [[lon,lat]...], color: '#hex'}, ...]
           const routesData = $routesJson;
 
           // Coordenada central inicial (Fortaleza aprox)
@@ -142,27 +158,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
             })
           });
 
-          // Style para as linhas
-          const styles = [
-            new ol.style.Style({
-              stroke: new ol.style.Stroke({
-                color: 'blue',
-                width: 4
-              })
-            }),
-             new ol.style.Style({
-              stroke: new ol.style.Stroke({
-                color: 'rgba(0, 0, 255, 0.1)', // Outline para melhor visibilidade em fundos claros
-                width: 6
-              })
-            })
-          ];
-
           // Adicionar rotas
           const vectorSource = new ol.source.Vector();
           
           if (routesData && routesData.length > 0) {
-            routesData.forEach((routeCoords) => {
+            routesData.forEach((routeItem) => {
+              const routeCoords = routeItem.coordinates;
+              const routeColor = routeItem.color || 'blue';
+
               // routeCoords é [[lon, lat], [lon, lat], ...]
               const lineString = new ol.geom.LineString(routeCoords);
               // Transformar de WGS 84 (4326) para Web Mercator (3857) - padrão do OpenLayers
@@ -172,13 +175,21 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
                 geometry: lineString,
                 name: 'Bus Route'
               });
+
+              // Style especifico para esta feature (cor dinâmica)
+              const style = new ol.style.Style({
+                stroke: new ol.style.Stroke({
+                  color: routeColor,
+                  width: 5
+                })
+              });
               
+              feature.setStyle(style);
               vectorSource.addFeature(feature);
             });
 
             const vectorLayer = new ol.layer.Vector({
-              source: vectorSource,
-              style: styles
+              source: vectorSource
             });
             
             map.addLayer(vectorLayer);
@@ -219,12 +230,9 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         children: [
           // Exibe o WebView com o mapa OpenLayers injetado
           WebViewWidget(controller: _controller),
-          
+
           // Exibe o indicador de carregamento enquanto _isLoading for true
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
-            ),
+          if (_isLoading) const Center(child: CircularProgressIndicator()),
         ],
       ),
     );

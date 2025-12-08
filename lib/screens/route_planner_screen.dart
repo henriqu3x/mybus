@@ -63,6 +63,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
 
     // O ponto de partida é a ORIGEM selecionada
     String currentStartStreet = _origin!.nome;
+    int currentStartLogId = _origin!.id; // NOVO: ID de partida
     String currentLine = route.first.lineName;
     double currentDistance = 0;
 
@@ -86,6 +87,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
             startStreetName: currentStartStreet,
             endStreetName: previousEdge.destination.name,
             distance: currentDistance,
+            startStopId: currentStartLogId, // NOVO
+            endStopId: previousEdge.destination.id, // NOVO
           ),
         );
 
@@ -93,6 +96,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         currentLine = edge.lineName;
         currentStartStreet =
             previousEdge.destination.name; // Novo ponto de embarque
+        currentStartLogId =
+            previousEdge.destination.id; // NOVO: Atualiza ID de partida
         currentDistance = edge.weight; // Zera e começa a nova distância
       }
     }
@@ -105,6 +110,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         startStreetName: currentStartStreet,
         endStreetName: _destination!.nome, // Ponto final
         distance: currentDistance,
+        startStopId: currentStartLogId, // NOVO
+        endStopId: _destination!.id, // NOVO
       ),
     );
 
@@ -273,10 +280,22 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       0.0,
       (sum, seg) => sum + seg.distance,
     );
-    // Número de trocas é o número de segmentos menos 1
-    int transfers = segmentedRoute.length - 1;
 
-    // Adiciona tempo para trocas (e.g., 10 minutos por troca)
+    // Número de trocas ignorando mudança de sentido na mesma linha
+    int transfers = 0;
+    for (int i = 0; i < segmentedRoute.length - 1; i++) {
+      final current = segmentedRoute[i].lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '');
+      final next = segmentedRoute[i + 1].lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '');
+      if (current != next) {
+        transfers++;
+      }
+    }
+
+    // Adiciona tempo para trocas (e.g., 10 minutos por troca REAL)
     int totalTime =
         TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
 
@@ -356,9 +375,9 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
             ),
           ),
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Botão de Visualizar no Mapa
         SizedBox(
           width: double.infinity,
@@ -367,9 +386,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => RouteMapScreen(
-                    segments: segmentedRoute,
-                  ),
+                  builder: (context) =>
+                      RouteMapScreen(segments: segmentedRoute),
                 ),
               );
             },
@@ -388,7 +406,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           'Passo a Passo:',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        
+
         // Lista de Segmentos
         Expanded(
           child: ListView.separated(

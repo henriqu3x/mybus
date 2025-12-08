@@ -56,6 +56,7 @@ dependencies:
   uuid: ^4.5.2
   path_provider: ^2.1.5
   xml: ^6.6.1
+  geolocator: ^10.1.0
 
 dev_dependencies:
   flutter_test:
@@ -81,6 +82,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/rotas_horarios.kml
+    - assets/paradas_onibus.kml
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

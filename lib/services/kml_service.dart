@@ -1,6 +1,22 @@
 import 'package:flutter/services.dart';
 import 'package:xml/xml.dart';
 
+class StopInfo {
+  final int id;
+  final String name; // Usually the address or name in description
+  final double lat;
+  final double lon;
+  final List<String> lines;
+
+  StopInfo({
+    required this.id,
+    required this.name,
+    required this.lat,
+    required this.lon,
+    required this.lines,
+  });
+}
+
 class KmlService {
   static const String _kmlPath = 'assets/rotas_horarios.kml';
   XmlDocument? _document;
@@ -59,9 +75,6 @@ class KmlService {
               final startsWithCode = kmlName.startsWith(lineCode + ' - ');
               final endsWithDirection = kmlName.endsWith(' - $direction');
               if (startsWithCode && endsWithDirection) {
-                print(
-                  'DEBUG: Flexible match found: "$kmlName" matches "$cleanLineName"',
-                );
                 return true;
               }
             }
@@ -70,16 +83,9 @@ class KmlService {
             return kmlName == cleanLineName;
           },
           orElse: () {
-            print('DEBUG: No match found for line: "$cleanLineName" in KML.');
-            print(
-              'DEBUG: Tried matching with code: "$lineCode" and direction: "$direction"',
-            );
             throw StateError('No match');
           },
         );
-
-        // If we get here, we found a placemark
-        print('DEBUG: Found Placemark for $cleanLineName');
 
         final lineString = placemark.findAllElements('LineString').firstOrNull;
         if (lineString != null) {
@@ -102,31 +108,105 @@ class KmlService {
             }
             if (routeCoords.isNotEmpty) {
               allRoutesCoordinates.add(routeCoords);
-              print(
-                'DEBUG: Extracted ${routeCoords.length} points for $cleanLineName',
-              );
-            } else {
-              print('DEBUG: No valid coordinates parsed for $cleanLineName');
             }
-          } else {
-            print('DEBUG: No coordinates text found for $cleanLineName');
           }
-        } else {
-          print('DEBUG: No LineString found for $cleanLineName');
         }
       } catch (e) {
-        if (e is! StateError) {
-          print('DEBUG: Exception finding route in KML for $lineName: $e');
-        }
+        // Ignore errors for individual lines
       }
     }
 
-    if (allRoutesCoordinates.isEmpty) {
-      print('DEBUG: allRoutesCoordinates is empty! No lines matched.');
-    } else {
-      print('DEBUG: Total routes found: ${allRoutesCoordinates.length}');
+    return allRoutesCoordinates;
+  }
+
+  static const String _stopsKmlPath = 'assets/paradas_onibus.kml';
+  XmlDocument? _stopsDocument;
+
+  /// Carrega o arquivo KML de paradas e retorna uma lista de StopInfo
+  Future<List<StopInfo>> loadStopsMetadata() async {
+    final List<StopInfo> stops = [];
+
+    if (_stopsDocument == null) {
+      try {
+        final String data = await rootBundle.loadString(_stopsKmlPath);
+        _stopsDocument = XmlDocument.parse(data);
+      } catch (e) {
+        print('Erro ao carregar KML de paradas: $e');
+        return [];
+      }
     }
 
-    return allRoutesCoordinates;
+    final placemarks = _stopsDocument!.findAllElements('Placemark');
+
+    for (var placemark in placemarks) {
+      try {
+        // 1. Extrair ID (Name)
+        final nameElement = placemark.getElement('name');
+        if (nameElement == null) continue;
+        final stopId = int.tryParse(nameElement.innerText.trim());
+        if (stopId == null) continue;
+
+        // 2. Extrair Coordenadas
+        final pointElement = placemark.getElement('Point');
+        if (pointElement == null) continue;
+        final coordsElement = pointElement.getElement('coordinates');
+        if (coordsElement == null) continue;
+
+        final coordsParts = coordsElement.innerText.trim().split(',');
+        if (coordsParts.length < 2) continue;
+
+        final lon = double.tryParse(coordsParts[0]);
+        final lat = double.tryParse(coordsParts[1]);
+        if (lon == null || lat == null) continue;
+
+        // 3. Extrair Metadata (Description) -> Endereço e Linhas
+        final descElement = placemark.getElement('description');
+        String name = 'Parada $stopId'; // Default
+        List<String> lines = [];
+
+        if (descElement != null) {
+          final desc = descElement.innerText;
+
+          // Extrair Endereço (brute force parsing)
+          // Look for "Endereço: </b>" and take until "<br>"
+          final addressMatch = RegExp(
+            r'Endereço: </b>(.*?)(<|$)',
+          ).firstMatch(desc);
+          if (addressMatch != null && addressMatch.group(1) != null) {
+            name = addressMatch.group(1)!.trim();
+          }
+
+          // Extrair Linhas
+          // "Linhas da parada: </b>X linha(s)<br>042; 071..."
+          final linesHeaderMatch = RegExp(
+            r'Linhas da parada:.*?<br>(.*?)(]]>|$)',
+          ).firstMatch(desc);
+          if (linesHeaderMatch != null && linesHeaderMatch.group(1) != null) {
+            final linesText = linesHeaderMatch.group(1)!.trim();
+            lines = linesText
+                .split(';')
+                .map((s) => s.trim())
+                .where((s) => s.isNotEmpty)
+                .toList();
+          }
+        }
+
+        stops.add(
+          StopInfo(id: stopId, name: name, lat: lat, lon: lon, lines: lines),
+        );
+      } catch (e) {
+        continue;
+      }
+    }
+
+    return stops;
+  }
+
+  // Mantendo compatibilidade com código anterior se necessário, mas idealmente migrar
+  Future<Map<int, List<double>>> loadStopsCoordinates() async {
+    final stops = await loadStopsMetadata();
+    return {
+      for (var s in stops) s.id: [s.lon, s.lat],
+    };
   }
 }
