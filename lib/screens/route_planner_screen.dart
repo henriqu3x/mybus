@@ -6,6 +6,8 @@ import '../models/trip_segment.dart';
 import '../utils/graph_utils.dart';
 import '../utils/time_utils.dart';
 import 'route_detail_screen.dart';
+import 'route_map_screen.dart';
+
 // --------------------------------------------------------------------
 
 class RoutePlannerScreen extends StatefulWidget {
@@ -281,6 +283,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Card de Resumo
         Card(
           color: Colors.green[50],
           child: InkWell(
@@ -353,11 +356,40 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
             ),
           ),
         ),
+        
+        const SizedBox(height: 16),
+        
+        // Botão de Visualizar no Mapa
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => RouteMapScreen(
+                    segments: segmentedRoute,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.map),
+            label: const Text('Visualizar no Mapa'),
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              backgroundColor: Colors.blue[800],
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ),
+
         const SizedBox(height: 16),
         const Text(
           'Passo a Passo:',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+        
+        // Lista de Segmentos
         Expanded(
           child: ListView.separated(
             itemCount: segmentedRoute.length,
@@ -437,70 +469,68 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
               return const SizedBox.shrink();
             },
             itemBuilder: (context, index) {
-              if (index < segmentedRoute.length) {
-                final segment = segmentedRoute[index];
-                final isLastSegment = index == segmentedRoute.length - 1;
+              // Item Builder Logic
+              final segment = segmentedRoute[index];
+              final isLastSegment = index == segmentedRoute.length - 1;
 
-                return Column(
-                  children: [
-                    Card(
-                      margin: const EdgeInsets.symmetric(vertical: 8),
-                      child: ListTile(
-                        leading: const Icon(
-                          Icons.directions_bus,
-                          color: Colors.blue,
-                        ),
-                        title: Text(
-                          'Pegue a Linha ${segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '')}',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Embarque: **${segment.startStreetName}**'),
-                            Text('Desembarque: **${segment.endStreetName}**'),
-                            Text(
-                              'Trajeto: ${(segment.distance / 1000).toStringAsFixed(1)} km',
-                              style: const TextStyle(color: Colors.grey),
-                            ),
-                          ],
-                        ),
+              return Column(
+                children: [
+                  Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.directions_bus,
+                        color: Colors.blue,
+                      ),
+                      title: Text(
+                        'Pegue a Linha ${segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '')}',
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Embarque: **${segment.startStreetName}**'),
+                          Text('Desembarque: **${segment.endStreetName}**'),
+                          Text(
+                            'Trajeto: ${(segment.distance / 1000).toStringAsFixed(1)} km',
+                            style: const TextStyle(color: Colors.grey),
+                          ),
+                        ],
                       ),
                     ),
-                    // Mostrar chegada após o último segmento
-                    if (isLastSegment)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 8,
-                          horizontal: 16,
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.arrow_downward,
-                              color: Colors.grey,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.flag,
-                                  color: Colors.green,
-                                ),
-                                title: const Text('Chegada'),
-                                subtitle: Text(
-                                  'Você chegou ao seu destino: **${_destination!.nome}**',
-                                ),
+                  ),
+                  // Mostrar chegada após o último segmento
+                  if (isLastSegment)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 16,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.arrow_downward,
+                            color: Colors.grey,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ListTile(
+                              leading: const Icon(
+                                Icons.flag,
+                                color: Colors.green,
+                              ),
+                              title: const Text('Chegada'),
+                              subtitle: Text(
+                                'Você chegou ao seu destino: **${_destination!.nome}**',
                               ),
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
+                    ),
+                ],
+              );
             },
           ),
         ),

@@ -47,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('MyBus - Fortal'),
+        title: const Text('No Ponto'),
         actions: [
           IconButton(
             icon: const Icon(Icons.star),

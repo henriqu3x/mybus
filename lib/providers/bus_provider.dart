@@ -14,6 +14,9 @@ class BusProvider with ChangeNotifier {
   List<Linha> _linhas = [];
   List<Linha> _filteredLinhas = [];
   List<Logradouro> _logradouros = [];
+  
+  bool _isLoading = false;
+  String? _error;
 
   // Cache for itineraries to build graph
   final Map<int, ItinerarioCompleto> _itinerarioCache = {};
@@ -24,14 +27,23 @@ class BusProvider with ChangeNotifier {
   List<Logradouro> get logradouros => _logradouros;
   bool get isGraphReady => _graph != null;
   bool get isGraphBuilding => _isGraphBuilding;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
 
   Future<void> fetchLinhas() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+    
     try {
       _linhas = await _apiService.getLinhas();
       _filteredLinhas = _linhas;
-      notifyListeners();
     } catch (e) {
       print('Error fetching linhas: $e');
+      _error = 'Erro ao carregar linhas. Verifique sua conexão.';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
