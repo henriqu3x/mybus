@@ -243,7 +243,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Paradas de Ônibus'),
+        title: const Text('No Ponto'),
         backgroundColor: Colors.blue[800],
         foregroundColor: Colors.white,
         actions: [

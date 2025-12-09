@@ -28,6 +28,10 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
     final dateStr =
         "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
     final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
+    
+    if (provider.linhas.isEmpty) {
+        await provider.fetchLinhas();
+    }
 
     Map<String, List<String>> result = {};
 
@@ -121,27 +125,30 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                       final lineCode = widget.stop.lines[index];
                       final schedules = _schedules[lineCode] ?? [];
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: ExpansionTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue,
-                            child: Text(
-                              lineCode,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                          final line = Provider.of<BusProvider>(context, listen: false)
+                              .getLineByNumber(lineCode);
+                          
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
                             ),
-                          ),
-                          title: Text(
-                            'Linha $lineCode',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
+                            child: ExpansionTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue,
+                                child: Text(
+                                  lineCode,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                line?.numeroNome ?? 'Linha $lineCode',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
                           subtitle: schedules.isEmpty
                               ? const Text(
                                   'Sem mais saídas hoje',

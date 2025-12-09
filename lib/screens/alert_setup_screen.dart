@@ -178,7 +178,9 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Configurar Alertas')),
+      appBar: AppBar(title: const Text('Configurar Alertas'),
+      backgroundColor: Colors.blue[800],
+      foregroundColor: Colors.white,),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

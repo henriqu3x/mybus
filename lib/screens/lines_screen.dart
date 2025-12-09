@@ -50,46 +50,8 @@ class _LinesScreenState extends State<LinesScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Linhas de Ônibus'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.star),
-            tooltip: 'Favoritos',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const FavoritesScreen(),
-                ),
-              ).then((_) => _loadFavorites());
-            },
-          ),
-          // Route Planner button removed as it's accessible from Home Map.
-          // Or we can keep it for convenience. Let's keep it but maybe as secondary.
-          IconButton(
-            icon: const Icon(Icons.map), // Route Planner icon
-            tooltip: 'Planejador',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const RoutePlannerScreen(),
-                ),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.notifications),
-            tooltip: 'Alertas',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AlertSetupScreen(),
-                ),
-              );
-            },
-          ),
-        ],
+        backgroundColor: Colors.blue[800],
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [

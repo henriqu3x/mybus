@@ -123,7 +123,9 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Planejador de Rotas')),
+      appBar: AppBar(title: const Text('Planejador de Rotas'),
+      backgroundColor: Colors.blue[800],
+      foregroundColor: Colors.white,),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

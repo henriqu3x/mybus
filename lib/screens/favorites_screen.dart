@@ -63,8 +63,12 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Favoritos'),
+        backgroundColor: Colors.blue[800],
+        foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.grey[400],
           tabs: const [
             Tab(icon: Icon(Icons.directions_bus), text: 'Linhas'),
             Tab(icon: Icon(Icons.route), text: 'Rotas'),

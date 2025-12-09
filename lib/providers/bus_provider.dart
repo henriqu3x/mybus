@@ -30,20 +30,41 @@ class BusProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  Future<void> fetchLinhas() async {
+  Future<void>? _linesLoadingFuture;
+
+  Future<void> fetchLinhas({bool forceRefresh = false}) async {
+    // If loading is already in progress, return the existing future
+    if (_linesLoadingFuture != null) {
+      return _linesLoadingFuture;
+    }
+
+    // If data exists and we are not forcing refresh, return immediately
+    if (_linhas.isNotEmpty && !forceRefresh) return;
+    
     _isLoading = true;
     _error = null;
     notifyListeners();
+
+    // Create a new future and assign it
+    _linesLoadingFuture = _fetchLinhasInternal();
     
+    try {
+      await _linesLoadingFuture;
+    } finally {
+      // Clear the future when done so next call can refresh if needed
+      _linesLoadingFuture = null;
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _fetchLinhasInternal() async {
     try {
       _linhas = await _apiService.getLinhas();
       _filteredLinhas = _linhas;
     } catch (e) {
       print('Error fetching linhas: $e');
       _error = 'Erro ao carregar linhas. Verifique sua conexão.';
-    } finally {
-      _isLoading = false;
-      notifyListeners();
     }
   }
 
@@ -57,6 +78,25 @@ class BusProvider with ChangeNotifier {
       }).toList();
     }
     notifyListeners();
+  }
+
+  Linha? getLineByNumber(String number) {
+    try {
+      final num = int.tryParse(number);
+      if (num == null) return null;
+      
+      return _linhas.firstWhere(
+        (l) => l.numero == num,
+        orElse: () => Linha(
+            numero: num, 
+            nome: 'Linha $number', 
+            numeroNome: 'Linha $number', 
+            tipoLinha: ''
+        ),
+      );
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<ItinerarioCompleto> getItinerario(int idLinha) async {
