@@ -407,9 +407,9 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
 
     NotificationService().scheduleNotification(
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title: 'Prepare-se para descer!',
+      title: 'Prepare-se para ir para a parada!',
       body:
-          'O ônibus da linha ${_selectedLinha!.numeroNome} chegará ao ponto ${_selectedPonto?.nome} em breve (aprox. $_estimatedArrivalTime).',
+          'O ônibus da linha ${_selectedLinha!.numeroNome} chegará em breve (aprox. $_estimatedArrivalTime).',
       scheduledDate: alertDate,
     );
 

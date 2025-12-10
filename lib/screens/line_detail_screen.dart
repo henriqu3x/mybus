@@ -57,7 +57,11 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.linha.numeroNome),
+        backgroundColor: Colors.blue[800],
+        foregroundColor: Colors.white,
         bottom: TabBar(
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.grey[400],
           controller: _tabController,
           tabs: const [
             Tab(text: 'Itinerário'),
