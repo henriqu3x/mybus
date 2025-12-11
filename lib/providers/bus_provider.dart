@@ -479,8 +479,76 @@ class BusProvider with ChangeNotifier {
         .replaceAll(RegExp(r'[óòôõö]'), 'o')
         .replaceAll(RegExp(r'[úùûü]'), 'u')
         .replaceAll(RegExp(r'[ç]'), 'c')
-        .replaceAll(RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'), '')
+        .replaceAll(RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  Future<int?> getPredictedArrivalForStreet(int lineId, String streetName) async {
+    try {
+      final itinerarioCompleto = await getItinerario(lineId);
+      final now = DateTime.now();
+      final dateStr = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+      final horarios = await getHorarios(lineId, dateStr);
+      final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
+
+      // Check both directions
+      for (var itinerario in [itinerarioCompleto.ida, itinerarioCompleto.volta]) {
+        if (itinerario == null) continue;
+
+        // Find the point matching the street
+        double cumulativeDist = 0;
+        bool found = false;
+        for (var ponto in itinerario.pontos) {
+          if (_areNamesSimilar(ponto.nome, streetName)) {
+            found = true;
+            break;
+          }
+          cumulativeDist += ponto.distanciaPercorrida;
+        }
+
+        if (!found) continue;
+
+        // Find matching HorarioPosto
+        HorarioPosto? matchingPosto;
+        for (var posto in horarios) {
+          if (_areNamesSimilar(posto.postoControle, itinerario.pontoInicial)) {
+            matchingPosto = posto;
+            break;
+          }
+        }
+        if (matchingPosto == null && horarios.length == 1) {
+          matchingPosto = horarios.first;
+        }
+        if (matchingPosto == null) continue;
+
+        // Collect departure minutes
+        List<int> allDepartureMinutes = [];
+        for (var h in matchingPosto.horarios) {
+          try {
+            final parts = h.horario.split(':');
+            final mins = int.parse(parts[0]) * 60 + int.parse(parts[1]);
+            allDepartureMinutes.add(mins);
+          } catch (e) {
+            // ignore
+          }
+        }
+        allDepartureMinutes.sort();
+
+        // Calculate travel time
+        final travelMinutes = TimeUtils.calculateTravelTimeMinutes(cumulativeDist);
+
+        // Find next arrival
+        for (var depMins in allDepartureMinutes) {
+          final arrivalMins = depMins + travelMinutes;
+          if (arrivalMins > currentMinutes) {
+            return arrivalMins - currentMinutes;
+          }
+        }
+      }
+    } catch (e) {
+      print('Error calculating predicted arrival for street: $e');
+    }
+    return null;
   }
 }

@@ -13,7 +13,7 @@ class StopDetailScreen extends StatefulWidget {
 }
 
 class _StopDetailScreenState extends State<StopDetailScreen> {
-  Map<String, List<String>> _schedules = {};
+  Map<String, int?> _predictedArrivals = {};
   bool _loading = true;
 
   @override
@@ -24,49 +24,29 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
 
   Future<void> _loadSchedules() async {
     final provider = Provider.of<BusProvider>(context, listen: false);
-    final now = DateTime.now();
-    final dateStr =
-        "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
-    final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
-    
+
     if (provider.linhas.isEmpty) {
         await provider.fetchLinhas();
     }
 
-    Map<String, List<String>> result = {};
+    Map<String, int?> result = {};
 
     for (String lineCode in widget.stop.lines) {
       final lineId = int.tryParse(lineCode);
       if (lineId == null) continue;
 
       try {
-        final horariosPosto = await provider.getHorarios(lineId, dateStr);
-        List<String> allTimes = [];
-        for (var posto in horariosPosto) {
-          allTimes.addAll(posto.horarios.map((h) => h.horario));
-        }
-
-        // Filter upcoming times
-        final upcoming = allTimes.where((t) {
-          try {
-            final parts = t.split(':');
-            final min = int.parse(parts[0]) * 60 + int.parse(parts[1]);
-            return min >= currentMinutes;
-          } catch (e) {
-            return false;
-          }
-        }).toList();
-
-        result[lineCode] = upcoming;
+        final predictedArrival = await provider.getPredictedArrivalForStreet(lineId, widget.stop.name);
+        result[lineCode] = predictedArrival;
       } catch (e) {
-        print('Error loading schedule for line $lineCode: $e');
-        result[lineCode] = [];
+        print('Error loading predicted arrival for line $lineCode: $e');
+        result[lineCode] = null;
       }
     }
 
     if (mounted) {
       setState(() {
-        _schedules = result;
+        _predictedArrivals = result;
         _loading = false;
       });
     }
@@ -123,72 +103,53 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                     itemCount: widget.stop.lines.length,
                     itemBuilder: (context, index) {
                       final lineCode = widget.stop.lines[index];
-                      final schedules = _schedules[lineCode] ?? [];
+                      final predictedArrival = _predictedArrivals[lineCode];
 
-                          final line = Provider.of<BusProvider>(context, listen: false)
-                              .getLineByNumber(lineCode);
-                          
-                          return Card(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                      final line = Provider.of<BusProvider>(context, listen: false)
+                          .getLineByNumber(lineCode);
+
+                      String subtitleText;
+                      Color subtitleColor;
+
+                      if (predictedArrival == null) {
+                        subtitleText = 'Sem previsão';
+                        subtitleColor = Colors.grey;
+                      } else {
+                        subtitleText = 'Próxima chegada: $predictedArrival min';
+                        if (predictedArrival <= 5) {
+                          subtitleColor = Colors.red;
+                        } else if (predictedArrival <= 15) {
+                          subtitleColor = Colors.orange;
+                        } else {
+                          subtitleColor = Colors.green;
+                        }
+                      }
+
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: Colors.blue,
+                            child: Text(
+                              lineCode,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            child: ExpansionTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blue,
-                                child: Text(
-                                  lineCode,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              title: Text(
-                                line?.numeroNome ?? 'Linha $lineCode',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                          subtitle: schedules.isEmpty
-                              ? const Text(
-                                  'Sem mais saídas hoje',
-                                  style: TextStyle(color: Colors.orange),
-                                )
-                              : Text(
-                                  'Próximas: ${schedules.take(3).join(', ')}',
-                                  style: const TextStyle(color: Colors.green),
-                                ),
-                          children: [
-                            if (schedules.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'Próximos horários:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Wrap(
-                                      spacing: 8,
-                                      runSpacing: 8,
-                                      children: schedules
-                                          .take(10)
-                                          .map(
-                                            (time) => Chip(
-                                              label: Text(time),
-                                              backgroundColor: Colors.blue[100],
-                                            ),
-                                          )
-                                          .toList(),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
+                          ),
+                          title: Text(
+                            line?.numeroNome ?? 'Linha $lineCode',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            subtitleText,
+                            style: TextStyle(color: subtitleColor),
+                          ),
                         ),
                       );
                     },
