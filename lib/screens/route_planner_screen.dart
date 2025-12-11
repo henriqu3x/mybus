@@ -417,6 +417,72 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
               // Mostrar indicador de transferência após cada segmento (exceto o último)
               if (index < segmentedRoute.length - 1) {
                 final currentSegment = segmentedRoute[index];
+                final nextSegment = segmentedRoute[index + 1];
+
+                // Verificar se é mudança de sentido na mesma linha (não mostrar como transferência)
+                final currentLineBase = currentSegment.lineName
+                    .replaceAll('_IDA', '')
+                    .replaceAll('_VOLTA', '');
+                final nextLineBase = nextSegment.lineName
+                    .replaceAll('_IDA', '')
+                    .replaceAll('_VOLTA', '');
+
+                // Se for a mesma linha mudando de sentido, não mostrar indicador de transferência
+                if (currentLineBase == nextLineBase) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 4,
+                      horizontal: 16,
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.arrow_downward,
+                          color: Colors.grey,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue[50],
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.blue,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.repeat,
+                                  color: Colors.blue[700],
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Continua na mesma linha',
+                                  style: TextStyle(
+                                    color: Colors.blue[900],
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Caso contrário, mostrar indicador normal de transferência
                 final transferLocation = currentSegment.endStreetName;
                 final isTerminalTransfer = transferLocation
                     .toLowerCase()
