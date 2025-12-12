@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../services/kml_service.dart';
 import '../providers/bus_provider.dart';
 
+import 'line_detail_screen.dart';
+
 class StopDetailScreen extends StatefulWidget {
   final StopInfo stop;
 
@@ -13,43 +15,17 @@ class StopDetailScreen extends StatefulWidget {
 }
 
 class _StopDetailScreenState extends State<StopDetailScreen> {
-  Map<String, int?> _predictedArrivals = {};
-  bool _loading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadSchedules();
-  }
-
-  Future<void> _loadSchedules() async {
-    final provider = Provider.of<BusProvider>(context, listen: false);
-
-    if (provider.linhas.isEmpty) {
-        await provider.fetchLinhas();
-    }
-
-    Map<String, int?> result = {};
-
-    for (String lineCode in widget.stop.lines) {
-      final lineId = int.tryParse(lineCode);
-      if (lineId == null) continue;
-
-      try {
-        final predictedArrival = await provider.getPredictedArrivalForStreet(lineId, widget.stop.name);
-        result[lineCode] = predictedArrival;
-      } catch (e) {
-        print('Error loading predicted arrival for line $lineCode: $e');
-        result[lineCode] = null;
+    // Ensure lines are loaded just in case, though usually HomeMapScreen does it
+    // We can do it silently
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<BusProvider>(context, listen: false);
+      if (provider.linhas.isEmpty) {
+        provider.fetchLinhas();
       }
-    }
-
-    if (mounted) {
-      setState(() {
-        _predictedArrivals = result;
-        _loading = false;
-      });
-    }
+    });
   }
 
   @override
@@ -94,63 +70,74 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
 
           // Lines list
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : widget.stop.lines.isEmpty
+            child: widget.stop.lines.isEmpty
                 ? const Center(child: Text('Nenhuma linha identificada.'))
-                : ListView.builder(
-                    padding: const EdgeInsets.all(8),
-                    itemCount: widget.stop.lines.length,
-                    itemBuilder: (context, index) {
-                      final lineCode = widget.stop.lines[index];
-                      final predictedArrival = _predictedArrivals[lineCode];
-
-                      final line = Provider.of<BusProvider>(context, listen: false)
-                          .getLineByNumber(lineCode);
-
-                      String subtitleText;
-                      Color subtitleColor;
-
-                      if (predictedArrival == null) {
-                        subtitleText = 'Sem previsão';
-                        subtitleColor = Colors.grey;
-                      } else {
-                        subtitleText = 'Próxima chegada: $predictedArrival min';
-                        if (predictedArrival <= 5) {
-                          subtitleColor = Colors.red;
-                        } else if (predictedArrival <= 15) {
-                          subtitleColor = Colors.orange;
-                        } else {
-                          subtitleColor = Colors.green;
-                        }
+                : Consumer<BusProvider>(
+                    builder: (context, provider, child) {
+                      if (provider.isLoading && provider.linhas.isEmpty) {
+                        return const Center(child: CircularProgressIndicator());
                       }
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        child: ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Colors.blue,
-                            child: Text(
-                              lineCode,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(8),
+                        itemCount: widget.stop.lines.length,
+                        itemBuilder: (context, index) {
+                          final lineCode = widget.stop.lines[index];
+                          final line = provider.getLineByNumber(lineCode);
+
+                          return Card(
+                            margin: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
                             ),
-                          ),
-                          title: Text(
-                            line?.numeroNome ?? 'Linha $lineCode',
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Text(
-                            subtitleText,
-                            style: TextStyle(color: subtitleColor),
-                          ),
-                        ),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.blue,
+                                child: Text(
+                                  lineCode,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                line?.numeroNome ?? 'Linha $lineCode',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              subtitle: const Text(
+                                'Toque para ver detalhes e horários',
+                                style: TextStyle(color: Colors.blueGrey),
+                              ),
+                              trailing: const Icon(
+                                Icons.arrow_forward_ios,
+                                size: 16,
+                              ),
+                              onTap: () {
+                                if (line != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          LineDetailScreen(linha: line),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Detalhes da linha não disponíveis.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
