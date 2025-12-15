@@ -35,6 +35,8 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   final Map<String, Future<List<HorarioPosto>>> _scheduleCache = {};
   final Map<String, Future<ItinerarioCompleto>> _itineraryCache = {};
 
+  
+
   @override
   void initState() {
     super.initState();
@@ -548,7 +550,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         }
 
         // Check for end point match
-        if (endIndex == null) {
+        if (startIndex != null && endIndex == null) {
           if (_areNamesSimilar(ponto.nome, endPointName)) {
             endIndex = i;
           }
@@ -557,9 +559,21 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         currentDist += ponto.distanciaPercorrida;
       }
 
-      // If both found and start is before end, this is the correct itinerary
-      if (startIndex != null && endIndex != null && startIndex < endIndex) {
-        return _ItineraryMatch(startDist!, itinerario.pontoInicial);
+      // If start is found, use this itinerary (even if end point is not found)
+      // This handles cases where the segment spans across direction changes
+      if (startIndex != null) {
+        // If end point not found, it might be across direction change
+        // In that case, just use the distance to the start point
+        if (endIndex == null) {
+          // The end point might be in the opposite direction
+          // For now, return the start distance (this is better than showing error)
+          return _ItineraryMatch(startDist!, itinerario.pontoInicial);
+        }
+
+        // Both found and start is before end, this is the correct itinerary
+        if (startIndex < endIndex) {
+          return _ItineraryMatch(startDist!, itinerario.pontoInicial);
+        }
       }
     }
     return null;

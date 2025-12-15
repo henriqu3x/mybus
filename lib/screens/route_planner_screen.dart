@@ -65,17 +65,19 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     String currentStartStreet = _origin!.nome;
     int currentStartLogId = _origin!.id; // NOVO: ID de partida
     String currentLine = route.first.lineName;
+    String currentLineBase = _normalizeLineName(currentLine); // Remove _IDA/_VOLTA
     double currentDistance = 0;
 
     // Itera pelas arestas para agrupar
     for (int i = 0; i < route.length; i++) {
       final edge = route[i];
+      final edgeLineBase = _normalizeLineName(edge.lineName);
 
-      // Se a linha for a mesma, apenas acumula distância
-      if (edge.lineName == currentLine) {
+      // Se a linha for a mesma (ignorando IDA/VOLTA), apenas acumula distância
+      if (edgeLineBase == currentLineBase) {
         currentDistance += edge.weight;
       } else {
-        // MUDANÇA DE LINHA: Finaliza o segmento anterior
+        // MUDANÇA DE LINHA REAL: Finaliza o segmento anterior
 
         // O ponto de desembarque é o destino da ARESTA ANTERIOR (onde a troca ocorre)
         final previousEdge = route[i - 1];
@@ -94,6 +96,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
 
         // INICIA NOVO SEGMENTO
         currentLine = edge.lineName;
+        currentLineBase = edgeLineBase;
         currentStartStreet =
             previousEdge.destination.name; // Novo ponto de embarque
         currentStartLogId =
@@ -116,6 +119,11 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     );
 
     return segments;
+  }
+
+  /// Normaliza o nome da linha removendo sufixos de direção (_IDA, _VOLTA)
+  String _normalizeLineName(String lineName) {
+    return lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
   }
 
   // ----------------------------------------------------------------------
