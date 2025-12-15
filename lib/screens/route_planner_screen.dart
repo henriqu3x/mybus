@@ -73,13 +73,38 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       final edge = route[i];
       final edgeLineBase = _normalizeLineName(edge.lineName);
 
-      // Se a linha for a mesma (ignorando IDA/VOLTA), apenas acumula distância
+      // Se a linha for a mesma (ignorando IDA/VOLTA), mas a direção mudou,
+      // devemos encerrar o segmento e iniciar outro para representar a mudança
+      // de sentido (ex.: mesma linha, de Ida para Volta).
       if (edgeLineBase == currentLineBase) {
-        currentDistance += edge.weight;
+        if (edge.lineName == currentLine) {
+          // mesma linha e mesma direção: acumula
+          currentDistance += edge.weight;
+        } else {
+          // mesma linha, DIREÇÃO DIFERENTE -> tratar como troca lógica de segmento
+          final previousEdge = route[i - 1];
+
+          segments.add(
+            TripSegment(
+              type: 'BUS',
+              lineName: currentLine,
+              startStreetName: currentStartStreet,
+              endStreetName: previousEdge.destination.name,
+              distance: currentDistance,
+              startStopId: currentStartLogId,
+              endStopId: previousEdge.destination.id,
+            ),
+          );
+
+          // Inicia novo segmento com a nova direção
+          currentLine = edge.lineName;
+          currentLineBase = edgeLineBase;
+          currentStartStreet = previousEdge.destination.name;
+          currentStartLogId = previousEdge.destination.id;
+          currentDistance = edge.weight;
+        }
       } else {
         // MUDANÇA DE LINHA REAL: Finaliza o segmento anterior
-
-        // O ponto de desembarque é o destino da ARESTA ANTERIOR (onde a troca ocorre)
         final previousEdge = route[i - 1];
 
         segments.add(
@@ -89,19 +114,17 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
             startStreetName: currentStartStreet,
             endStreetName: previousEdge.destination.name,
             distance: currentDistance,
-            startStopId: currentStartLogId, // NOVO
-            endStopId: previousEdge.destination.id, // NOVO
+            startStopId: currentStartLogId,
+            endStopId: previousEdge.destination.id,
           ),
         );
 
         // INICIA NOVO SEGMENTO
         currentLine = edge.lineName;
         currentLineBase = edgeLineBase;
-        currentStartStreet =
-            previousEdge.destination.name; // Novo ponto de embarque
-        currentStartLogId =
-            previousEdge.destination.id; // NOVO: Atualiza ID de partida
-        currentDistance = edge.weight; // Zera e começa a nova distância
+        currentStartStreet = previousEdge.destination.name;
+        currentStartLogId = previousEdge.destination.id;
+        currentDistance = edge.weight;
       }
     }
 
@@ -417,15 +440,18 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
 
-        // Lista de Segmentos
+        // Lista de Segmentos (mesclados por linha base para evitar duplicatas)
         Expanded(
-          child: ListView.separated(
-            itemCount: segmentedRoute.length,
-            separatorBuilder: (context, index) {
-              // Mostrar indicador de transferência após cada segmento (exceto o último)
-              if (index < segmentedRoute.length - 1) {
-                final currentSegment = segmentedRoute[index];
-                final nextSegment = segmentedRoute[index + 1];
+          child: Builder(
+            builder: (context) {
+              final displaySegments = _mergeSegmentsByLineBase(segmentedRoute);
+              return ListView.separated(
+                itemCount: displaySegments.length,
+                separatorBuilder: (context, index) {
+                  // Mostrar indicador de transferência após cada segmento (exceto o último)
+                  if (index < displaySegments.length - 1) {
+                final currentSegment = displaySegments[index];
+                final nextSegment = displaySegments[index + 1];
 
                 // Verificar se é mudança de sentido na mesma linha (não mostrar como transferência)
                 final currentLineBase = currentSegment.lineName
@@ -564,8 +590,9 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
             },
             itemBuilder: (context, index) {
               // Item Builder Logic
-              final segment = segmentedRoute[index];
-              final isLastSegment = index == segmentedRoute.length - 1;
+              final displaySegments = _mergeSegmentsByLineBase(segmentedRoute);
+              final segment = displaySegments[index];
+              final isLastSegment = index == displaySegments.length - 1;
 
               return Column(
                 children: [
@@ -626,9 +653,72 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                 ],
               );
             },
+          );
+            }
           ),
         ),
       ],
     );
+  }
+
+  /// Mescla segmentos consecutivos da mesma linha base (ignorando _IDA/_VOLTA)
+  /// Isso evita exibir múltiplos cards para a mesma linha quando há mudança de sentido
+  List<TripSegment> _mergeSegmentsByLineBase(List<TripSegment> segments) {
+    if (segments.isEmpty) return [];
+
+    final List<TripSegment> result = [];
+    String currentBase = segments.first.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+    String startStreet = segments.first.startStreetName;
+    int startStop = segments.first.startStopId;
+    double distance = segments.first.distance;
+    String endStreet = segments.first.endStreetName;
+    int endStop = segments.first.endStopId;
+
+    for (int i = 1; i < segments.length; i++) {
+      final s = segments[i];
+      final base = s.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+
+      if (base == currentBase) {
+        // Mescla: mesma linha, apenas atualiza o final
+        distance += s.distance;
+        endStreet = s.endStreetName;
+        endStop = s.endStopId;
+      } else {
+        // Linha diferente: flush do segmento atual e começa novo
+        result.add(
+          TripSegment(
+            type: 'BUS',
+            lineName: currentBase,
+            startStreetName: startStreet,
+            endStreetName: endStreet,
+            distance: distance,
+            startStopId: startStop,
+            endStopId: endStop,
+          ),
+        );
+
+        currentBase = base;
+        startStreet = s.startStreetName;
+        startStop = s.startStopId;
+        distance = s.distance;
+        endStreet = s.endStreetName;
+        endStop = s.endStopId;
+      }
+    }
+
+    // Flush do último segmento
+    result.add(
+      TripSegment(
+        type: 'BUS',
+        lineName: currentBase,
+        startStreetName: startStreet,
+        endStreetName: endStreet,
+        distance: distance,
+        startStopId: startStop,
+        endStopId: endStop,
+      ),
+    );
+
+    return result;
   }
 }

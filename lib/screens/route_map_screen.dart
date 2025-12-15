@@ -96,6 +96,13 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       busSegments,
     );
 
+    // DEBUG: imprimir no console para diagnosticar quantas rotas foram encontradas
+    // e quais segmentos foram solicitados.
+    try {
+      // ignore: avoid_print
+      // ignore: avoid_print
+    } catch (_) {}
+
     // Prepare data with colors
     final List<Map<String, dynamic>> themedRoutes = [];
     final List<String> colors = [
@@ -120,6 +127,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     // Converter rotas para JSON para injetar no JS
     final routesJson = jsonEncode(routesWithTheme);
 
+    // DEBUG: imprime o JSON que será injetado no WebView
+    try {
+      // ignore: avoid_print
+    } catch (_) {}
+
     final htmlContent =
         '''
       <!DOCTYPE html>
@@ -141,6 +153,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           // Dados das rotas injetados pelo Dart
           // Structure: [{coordinates: [[lon,lat]...], color: '#hex'}, ...]
           const routesData = $routesJson;
+          console.log('RouteMapScreen (JS): routesData', routesData);
 
           // Coordenada central inicial (Fortaleza aprox)
           const defaultCenter = [-38.5267, -3.7319]; 

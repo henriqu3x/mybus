@@ -71,6 +71,10 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Build display segments by merging consecutive segments of the same line
+    // base (ignoring _IDA/_VOLTA). This prevents duplicate cards when the bus
+    // only changes direction but remains the same physical service.
+    final displaySegments = _computeDisplaySegmentsForDisplay(widget.segments);
     // Calculate transfers ignoring same-line direction changes (IDA/VOLTA)
     int transfers = 0;
     for (int i = 0; i < widget.segments.length - 1; i++) {
@@ -169,9 +173,27 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16.0),
-              itemCount: widget.segments.length,
+              itemCount: displaySegments.length,
               itemBuilder: (context, index) {
-                return _buildSegmentCard(widget.segments[index], index);
+                final entry = displaySegments[index];
+                // compute whether next display segment is same base line
+                bool isNextSameLine = false;
+                if (index < displaySegments.length - 1) {
+                  final currentBase = (entry['segment'] as TripSegment)
+                      .lineName
+                      .replaceAll('_IDA', '')
+                      .replaceAll('_VOLTA', '');
+                  final nextBase = (displaySegments[index + 1]['segment'] as TripSegment)
+                      .lineName
+                      .replaceAll('_IDA', '')
+                      .replaceAll('_VOLTA', '');
+                  if (currentBase == nextBase) isNextSameLine = true;
+                }
+
+                return _buildSegmentCard(entry['segment'] as TripSegment,
+                    index,
+                    lineKeys: entry['lineKeys'] as List<String>,
+                    isNextSameLine: isNextSameLine);
               },
             ),
           ),
@@ -198,23 +220,32 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     );
   }
 
-  Widget _buildSegmentCard(TripSegment segment, int index) {
-    final scheduleFuture = _scheduleCache[segment.lineName];
-    final itineraryFuture = _itineraryCache[segment.lineName];
+  Widget _buildSegmentCard(TripSegment segment, int index,
+      {List<String>? lineKeys, bool isNextSameLine = false}) {
+    // Try to find schedule/itinerary futures using provided lineKeys (original
+    // segment names) to ensure we still use cached data when we merged display
+    // segments.
+    Future<List<HorarioPosto>>? scheduleF;
+    Future<ItinerarioCompleto>? itineraryF;
 
-    // Check if next segment is a continuation of the same line
-    bool isNextSameLine = false;
-    if (index < widget.segments.length - 1) {
-      final currentBase = segment.lineName
-          .replaceAll('_IDA', '')
-          .replaceAll('_VOLTA', '');
-      final nextBase = widget.segments[index + 1].lineName
-          .replaceAll('_IDA', '')
-          .replaceAll('_VOLTA', '');
-      if (currentBase == nextBase) {
-        isNextSameLine = true;
+    if (lineKeys != null) {
+      for (var key in lineKeys) {
+        if (_scheduleCache.containsKey(key)) {
+          scheduleF = _scheduleCache[key] as Future<List<HorarioPosto>>;
+          break;
+        }
+      }
+      for (var key in lineKeys) {
+        if (_itineraryCache.containsKey(key)) {
+          itineraryF = _itineraryCache[key] as Future<ItinerarioCompleto>;
+          break;
+        }
       }
     }
+
+    final itineraryFuture = itineraryF ?? _itineraryCache[segment.lineName] ?? _itineraryCacheFallback(segment);
+    final scheduleFuture = scheduleF ?? _scheduleCache[segment.lineName] ?? _scheduleCacheFallback(segment);
+
 
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -629,6 +660,106 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
     arrivalTimes.sort();
     return arrivalTimes.take(maxCount).toList();
+  }
+
+  // Build display segments by merging consecutive TripSegments that belong
+  // to the same line base (ignoring _IDA/_VOLTA). Each entry is a map with
+  // 'segment' (a merged TripSegment) and 'lineKeys' (original line names)
+  List<Map<String, dynamic>> _computeDisplaySegmentsForDisplay(List<TripSegment> segments) {
+    final List<Map<String, dynamic>> result = [];
+    if (segments.isEmpty) return result;
+
+    String currentBase = segments.first.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+    String startStreet = segments.first.startStreetName;
+    int startStop = segments.first.startStopId;
+    double distance = segments.first.distance;
+    String endStreet = segments.first.endStreetName;
+    int endStop = segments.first.endStopId;
+    List<String> lineKeys = [segments.first.lineName];
+
+    for (int i = 1; i < segments.length; i++) {
+      final s = segments[i];
+      final base = s.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+      if (base == currentBase) {
+        // merge into current
+        distance += s.distance;
+        endStreet = s.endStreetName;
+        endStop = s.endStopId;
+        lineKeys.add(s.lineName);
+      } else {
+        // flush current merged segment
+        final merged = TripSegment(
+          type: 'BUS',
+          lineName: currentBase,
+          startStreetName: startStreet,
+          endStreetName: endStreet,
+          distance: distance,
+          startStopId: startStop,
+          endStopId: endStop,
+        );
+        result.add({'segment': merged, 'lineKeys': List<String>.from(lineKeys)});
+
+        // start new
+        currentBase = base;
+        startStreet = s.startStreetName;
+        startStop = s.startStopId;
+        distance = s.distance;
+        endStreet = s.endStreetName;
+        endStop = s.endStopId;
+        lineKeys = [s.lineName];
+      }
+    }
+
+    // flush last
+    final merged = TripSegment(
+      type: 'BUS',
+      lineName: currentBase,
+      startStreetName: startStreet,
+      endStreetName: endStreet,
+      distance: distance,
+      startStopId: startStop,
+      endStopId: endStop,
+    );
+    result.add({'segment': merged, 'lineKeys': List<String>.from(lineKeys)});
+
+    return result;
+  }
+
+  Future<List<HorarioPosto>>? _scheduleCacheFallback(TripSegment segment) {
+    final base = segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+    // 1) try to find by base
+    for (var key in _scheduleCache.keys) {
+      if (key.replaceAll('_IDA', '').replaceAll('_VOLTA', '') == base) {
+        return _scheduleCache[key];
+      }
+    }
+    // 2) try to find by line number
+    final num = _extractLineNumber(segment.lineName);
+    if (num != null) {
+      for (var key in _scheduleCache.keys) {
+        final kNum = _extractLineNumber(key);
+        if (kNum == num) return _scheduleCache[key];
+      }
+    }
+    return null;
+  }
+
+  Future<ItinerarioCompleto>? _itineraryCacheFallback(TripSegment segment) {
+    final base = segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+    for (var key in _itineraryCache.keys) {
+      if (key.replaceAll('_IDA', '').replaceAll('_VOLTA', '') == base) {
+        return _itineraryCache[key];
+      }
+    }
+    final num = _extractLineNumber(segment.lineName);
+    if (num != null) {
+      for (var key in _itineraryCache.keys) {
+        final kNum = _extractLineNumber(key);
+        if (kNum == num) return _itineraryCache[key];
+      }
+    }
+    return null;
+    return null;
   }
 
   bool _areNamesSimilar(String name1, String name2) {

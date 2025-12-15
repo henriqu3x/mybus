@@ -87,15 +87,18 @@ class KmlService {
           },
         );
 
-        final lineString = placemark.findAllElements('LineString').firstOrNull;
-        if (lineString != null) {
-          final coordinatesText = lineString
-              .getElement('coordinates')
-              ?.innerText
-              .trim();
-          if (coordinatesText != null) {
-            final List<List<double>> routeCoords = [];
-            final points = coordinatesText.split(' ');
+        // Agrega todas as LineString presentes no Placemark (alguns KMLs
+        // dividem a rota em múltiplos trechos). Antes pegávamos apenas o
+        // primeiro trecho o que fazia a rota parar no ponto de controle.
+        final lineStringElements = placemark.findAllElements('LineString').toList();
+        if (lineStringElements.isNotEmpty) {
+          final List<List<double>> routeCoords = [];
+          for (var ls in lineStringElements) {
+            final coordinatesText = ls.getElement('coordinates')?.innerText.trim();
+            if (coordinatesText == null || coordinatesText.isEmpty) continue;
+
+            // Separe por qualquer espaço em branco (que pode ser múltiplas quebras)
+            final points = coordinatesText.split(RegExp(r'\s+'));
             for (var point in points) {
               final parts = point.split(',');
               if (parts.length >= 2) {
@@ -106,9 +109,10 @@ class KmlService {
                 }
               }
             }
-            if (routeCoords.isNotEmpty) {
-              allRoutesCoordinates.add(routeCoords);
-            }
+          }
+
+          if (routeCoords.isNotEmpty) {
+            allRoutesCoordinates.add(routeCoords);
           }
         }
       } catch (e) {
