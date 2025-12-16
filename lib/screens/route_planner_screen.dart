@@ -419,8 +419,11 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      RouteMapScreen(segments: segmentedRoute),
+                  builder: (context) => RouteMapScreen(
+                    segments: segmentedRoute,
+                    origin: _origin!.nome,
+                    destination: _destination!.nome,
+                  ),
                 ),
               );
             },

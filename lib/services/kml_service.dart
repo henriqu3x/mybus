@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:xml/xml.dart';
 
@@ -212,5 +213,109 @@ class KmlService {
     return {
       for (var s in stops) s.id: [s.lon, s.lat],
     };
+  }
+
+  /// Busca paradas de ônibus que passam em uma determinada rua e servem as linhas especificadas
+  /// [streetName]: nome da rua (ex: "Rua das Flores", "Avenida Paulista")
+  /// [busLines]: lista de números de linhas de ônibus (ex: ["369", "371"])
+  /// Retorna uma lista de StopInfo que correspondem aos critérios
+  Future<List<StopInfo>> findStopsOnStreet(String streetName, List<String> busLines) async {
+    final allStops = await loadStopsMetadata();
+    final normalizedStreet = _normalizeStreetName(streetName);
+    
+    // Normalizar números de linhas (remover prefixos de zeros, etc)
+    final normalizedLines = busLines.map((l) => l.trim()).toSet();
+    
+    final matchingStops = <StopInfo>[];
+    
+    for (var stop in allStops) {
+      final normalizedStopName = _normalizeStreetName(stop.name);
+      
+      // Verificar se o nome da parada contém a rua
+      if (normalizedStopName.contains(normalizedStreet) || normalizedStreet.contains(normalizedStopName)) {
+        // Verificar se a parada serve alguma das linhas especificadas
+        final hasMatchingLine = stop.lines.any((stopLine) {
+          final normalizedStopLine = stopLine.trim();
+          return normalizedLines.contains(normalizedStopLine);
+        });
+        
+        if (hasMatchingLine) {
+          matchingStops.add(stop);
+        }
+      }
+    }
+    
+    return matchingStops;
+  }
+
+  /// Normaliza um nome de rua para facilitar comparação
+  /// Remove acentos, converte para minúsculas, remove prefixos como "Rua", "Avenida", etc
+  String _normalizeStreetName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[áàâãä]'), 'a')
+        .replaceAll(RegExp(r'[éèêë]'), 'e')
+        .replaceAll(RegExp(r'[íìîï]'), 'i')
+        .replaceAll(RegExp(r'[óòôõö]'), 'o')
+        .replaceAll(RegExp(r'[úùûü]'), 'u')
+        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'\b(rua|avenida|av\.|pça|praça|trav|travessa|rod|rodovia|estrada|est\.|r\.)\b'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  /// Encontra o ponto mais próximo em uma rota de coordenadas
+  /// [routeCoordinates]: lista de coordenadas [lon, lat]
+  /// [targetLat], [targetLon]: coordenadas alvo
+  /// Retorna o índice da coordenada mais próxima e a distância
+  ({int index, double distance}) _findClosestPointInRoute(
+    List<List<double>> routeCoordinates,
+    double targetLat,
+    double targetLon,
+  ) {
+    if (routeCoordinates.isEmpty) return (index: 0, distance: double.infinity);
+
+    double minDistance = double.infinity;
+    int closestIndex = 0;
+
+    for (int i = 0; i < routeCoordinates.length; i++) {
+      final coord = routeCoordinates[i];
+      final lon = coord[0];
+      final lat = coord[1];
+
+      // Distância euclidiana (simplificada)
+      final distance = sqrt((lat - targetLat) * (lat - targetLat) +
+              (lon - targetLon) * (lon - targetLon));
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+
+    return (index: closestIndex, distance: minDistance);
+  }
+
+  /// Corta uma rota de coordenadas desde um ponto de início até um ponto de término
+  /// [routeCoordinates]: lista de coordenadas [lon, lat]
+  /// [startIndex]: índice da coordenada de início
+  /// [endIndex]: índice da coordenada de término
+  /// Retorna um sub-segmento da rota
+  List<List<double>> _sliceRoute(
+    List<List<double>> routeCoordinates,
+    int startIndex,
+    int endIndex,
+  ) {
+    if (routeCoordinates.isEmpty) return [];
+
+    // Garante que start <= end
+    final start = startIndex < endIndex ? startIndex : endIndex;
+    final end = startIndex < endIndex ? endIndex : startIndex;
+
+    // Garante que os índices estão dentro dos limites
+    final clampedStart = start.clamp(0, routeCoordinates.length - 1);
+    final clampedEnd = end.clamp(0, routeCoordinates.length - 1);
+
+    return routeCoordinates.sublist(clampedStart, clampedEnd + 1);
   }
 }
