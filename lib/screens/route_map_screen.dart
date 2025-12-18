@@ -8,14 +8,14 @@ import '../services/kml_service.dart';
 
 class RouteMapScreen extends StatefulWidget {
   final List<TripSegment> segments;
-  final String origin;
-  final String destination;
+  final int originApiId;
+  final int destinationApiId;
 
   const RouteMapScreen({
     super.key,
     required this.segments,
-    required this.origin,
-    required this.destination,
+    required this.originApiId,
+    required this.destinationApiId,
   });
 
   @override
@@ -145,11 +145,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         
         if (idx == 0) {
           // Primeiro segmento: buscar parada de origem para esta linha específica
-          final stopsForThisLine = await _kmlService.findStopsOnStreet(
-            widget.origin,
-            [lineNum],
-          );
+          // Usar findStopsByApiId com o ID da API passado
+          final stopsForStreet = await _kmlService.findStopsByApiId(widget.originApiId);
+          // Filtrar apenas paradas que servem a linha atual
+          final stopsForThisLine = stopsForStreet
+              .where((s) => s.lines.contains(lineNum))
+              .toList();
           boardingStop = stopsForThisLine.isNotEmpty ? stopsForThisLine.first : null;
+          
           if (boardingStop != null) {
             boardingIndex = _findClosestInRoute(routeCoords, boardingStop.lat, boardingStop.lon)['index'];
             // Adicionar ponto de origem aos dados do mapa
@@ -161,7 +164,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           }
         } else if (previousRouteCoords != null) {
           // Próximos segmentos: começar a ~200m do fim da rota anterior
-          boardingIndex = _findPointAtDistanceFromEnd(previousRouteCoords, 200);
+          boardingIndex = _findPointAtDistanceFromEnd(previousRouteCoords, 0);
           if (boardingIndex < routeCoords.length) {
             final nearestInCurrent = _findClosestInRoute(
               routeCoords,
@@ -178,11 +181,14 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         
         if (idx == widget.segments.length - 1) {
           // Último segmento: buscar parada de destino para esta linha específica
-          final stopsForThisLine = await _kmlService.findStopsOnStreet(
-            widget.destination,
-            [lineNum],
-          );
+          // Usar findStopsByApiId com o ID da API passado
+          final stopsForStreet = await _kmlService.findStopsByApiId(widget.destinationApiId);
+          // Filtrar apenas paradas que servem a linha atual
+          final stopsForThisLine = stopsForStreet
+              .where((s) => s.lines.contains(lineNum))
+              .toList();
           alightingStop = stopsForThisLine.isNotEmpty ? stopsForThisLine.first : null;
+          
           if (alightingStop != null) {
             final result = _findClosestInRoute(routeCoords, alightingStop.lat, alightingStop.lon);
             alightingIndex = result['index'];
@@ -192,17 +198,23 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
               'lon': alightingStop.lon,
               'name': alightingStop.name,
             });
+          } else {
           }
         } else {
-          // Segmentos intermediários: usar fim da rota
-          alightingIndex = routeCoords.length - 1;
+          // Segmentos intermediários: encontrar ponto ~200m antes do fim
+          alightingIndex = _findPointAtDistanceFromEnd(routeCoords, 0);
           alightingStop = null;
         }
 
         // Cortar rota conforme índices encontrados
         List<List<double>> processedCoords = routeCoords;
-        if (boardingIndex < alightingIndex) {
+        if (boardingIndex >= 0 && alightingIndex >= boardingIndex && boardingIndex < routeCoords.length && alightingIndex < routeCoords.length) {
           processedCoords = _sliceRoute(routeCoords, boardingIndex, alightingIndex);
+        } else if (boardingIndex > 0 || alightingIndex < routeCoords.length - 1) {
+          // Se índices estão fora de ordem, ainda tenta fatiar com segurança
+          final start = boardingIndex.clamp(0, routeCoords.length - 1);
+          final end = alightingIndex.clamp(start, routeCoords.length - 1);
+          processedCoords = _sliceRoute(routeCoords, start, end);
         }
 
         // Adicionar rota processada
@@ -225,12 +237,11 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
         }
 
         previousEndStop = alightingStop;
-        previousRouteCoords = routeCoords;
+        previousRouteCoords = processedCoords.isNotEmpty ? processedCoords : routeCoords;
       }
 
       _loadHtmlContent(processedRoutes, originStopsData, destinationStopsData, walkingPaths);
     } catch (e) {
-      print('Erro ao carregar dados do mapa: $e');
       _loadHtmlContent([], [], [], []);
     }
   }
@@ -563,9 +574,23 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
           });
 
           map.on('pointermove', function(evt) {
-            const pixel = map.getEventPixel(evt.originalEvent);
-            const features = map.getFeaturesAtPixel(pixel);
-            map.getTarget().style.cursor = features && features.length > 0 ? 'pointer' : '';
+            try {
+              // Prefer the event-provided pixel. Fall back to originalEvent if necessary.
+              const pixel = (evt && evt.pixel) ? evt.pixel : (evt && evt.originalEvent) ? map.getEventPixel(evt.originalEvent) : null;
+              const features = pixel ? map.getFeaturesAtPixel(pixel) : null;
+
+              // map.getTargetElement() is the recommended API; fall back to map.getTarget().
+              const targetEl = typeof map.getTargetElement === 'function'
+                ? map.getTargetElement()
+                : (typeof map.getTarget === 'function' ? map.getTarget() : null);
+
+              if (targetEl && targetEl.style) {
+                targetEl.style.cursor = (features && features.length > 0) ? 'pointer' : '';
+              }
+            } catch (err) {
+              // Avoid spamming console if unexpected event shape arrives.
+              console.debug('pointermove handler error', err);
+            }
           });
         </script>
       </body>

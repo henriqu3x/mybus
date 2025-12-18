@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:xml/xml.dart';
 
@@ -29,7 +30,6 @@ class KmlService {
       final String data = await rootBundle.loadString(_kmlPath);
       _document = XmlDocument.parse(data);
     } catch (e) {
-      print('Erro ao carregar KML: $e');
       rethrow;
     }
   }
@@ -126,6 +126,14 @@ class KmlService {
 
   static const String _stopsKmlPath = 'assets/paradas_onibus.kml';
   XmlDocument? _stopsDocument;
+  
+  // lookup from API logradouro id -> list of KML stop ids
+  final Map<int, List<int>> _logradouroLookup = {};
+  bool _logradouroLookupLoaded = false;
+
+  // mapping from normalized street name -> API id (from logradouros_normalizados.json)
+  final Map<String, int> _streetNameToApiId = {};
+  bool _normalizadosLoaded = false;
 
   /// Carrega o arquivo KML de paradas e retorna uma lista de StopInfo
   Future<List<StopInfo>> loadStopsMetadata() async {
@@ -136,7 +144,6 @@ class KmlService {
         final String data = await rootBundle.loadString(_stopsKmlPath);
         _stopsDocument = XmlDocument.parse(data);
       } catch (e) {
-        print('Erro ao carregar KML de paradas: $e');
         return [];
       }
     }
@@ -205,6 +212,97 @@ class KmlService {
     }
 
     return stops;
+  }
+
+  /// Carrega arquivo `assets/logradouro_lookup.json` se existir.
+  Future<void> _loadLogradouroLookup() async {
+    if (_logradouroLookupLoaded) return;
+    try {
+      final jsonStr = await rootBundle.loadString('assets/logradouro_lookup.json');
+      final data = jsonDecode(jsonStr);
+      if (data is Map) {
+        data.forEach((k, v) {
+          try {
+            final intKey = int.tryParse(k.toString());
+            if (intKey == null) return;
+            if (v is List) {
+              final ids = <int>[];
+              for (var item in v) {
+                final iid = (item is int) ? item : int.tryParse(item.toString());
+                if (iid != null) ids.add(iid);
+              }
+              _logradouroLookup[intKey] = ids;
+            }
+          } catch (e) {
+            // ignore malformed entries
+          }
+        });
+      }
+    } catch (e) {
+      // ignore if file not present or invalid
+    }
+    _logradouroLookupLoaded = true;
+  }
+
+  /// Retorna as paradas (StopInfo) associadas ao id do logradouro da API
+  Future<List<StopInfo>> findStopsByApiId(int apiId) async {
+    await _loadLogradouroLookup();
+    final stops = await loadStopsMetadata();
+    // Debug info to help trace missing mappings
+    try {
+      if (!_logradouroLookupLoaded) {
+      }
+      if (_logradouroLookup.containsKey(apiId)) {
+        final mapped = _logradouroLookup[apiId]!;
+      } else {
+      }
+    } catch (e) {
+    }
+
+    final ids = _logradouroLookup[apiId];
+    if (ids == null || ids.isEmpty) {
+      return [];
+    }
+    // preserve order from ids list
+    final result = <StopInfo>[];
+    final mapById = {for (var s in stops) s.id: s};
+    for (var id in ids) {
+      final s = mapById[id];
+      if (s != null) result.add(s);
+    }
+    return result;
+  }
+
+  /// Carrega arquivo `assets/logradouros_normalizados.json` e mapeia nomes normalizados para IDs da API
+  Future<void> _loadNormalizadosMapping() async {
+    if (_normalizadosLoaded) return;
+    try {
+      final jsonStr = await rootBundle.loadString('assets/logradouros_normalizados.json');
+      final data = jsonDecode(jsonStr);
+      if (data is List) {
+        for (var entry in data) {
+          if (entry is Map) {
+            final id = (entry['id'] is int) ? entry['id'] : int.tryParse(entry['id'].toString());
+            final nome = (entry['nome'] is String) ? entry['nome'] : entry['nome'].toString();
+            if (id != null && nome.isNotEmpty) {
+              final normalizedName = _normalizeStreetName(nome);
+              _streetNameToApiId[normalizedName] = id;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // ignore if file not present or invalid
+    }
+    _normalizadosLoaded = true;
+  }
+
+  /// Busca o ID da API para um nome de rua (normalizado)
+  /// Retorna null se não encontrar
+  Future<int?> getApiIdForStreet(String streetName) async {
+    await _loadNormalizadosMapping();
+    final normalized = _normalizeStreetName(streetName);
+    return _streetNameToApiId[normalized];
   }
 
   // Mantendo compatibilidade com código anterior se necessário, mas idealmente migrar

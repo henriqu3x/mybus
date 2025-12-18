@@ -421,8 +421,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                 MaterialPageRoute(
                   builder: (context) => RouteMapScreen(
                     segments: segmentedRoute,
-                    origin: _origin!.nome,
-                    destination: _destination!.nome,
+                    originApiId: _origin!.id,
+                    destinationApiId: _destination!.id,
                   ),
                 ),
               );

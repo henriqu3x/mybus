@@ -63,7 +63,6 @@ class BusProvider with ChangeNotifier {
       _linhas = await _apiService.getLinhas();
       _filteredLinhas = _linhas;
     } catch (e) {
-      print('Error fetching linhas: $e');
       _error = 'Erro ao carregar linhas. Verifique sua conexão.';
     }
   }
@@ -117,7 +116,6 @@ class BusProvider with ChangeNotifier {
       _logradouros = await _apiService.getLogradouros();
       notifyListeners();
     } catch (e) {
-      print('Error fetching logradouros: $e');
     }
   }
 
@@ -174,7 +172,6 @@ class BusProvider with ChangeNotifier {
                 }
               }
             } catch (e) {
-              print('Error processing line ${linha.numero}: $e');
             }
           }),
         );
@@ -183,7 +180,6 @@ class BusProvider with ChangeNotifier {
       _graph = TransportGraph();
       _graph!.buildFromItineraries(allItineraries);
     } catch (e) {
-      print('Error building graph: $e');
     } finally {
       _isGraphBuilding = false;
       notifyListeners();
@@ -283,7 +279,6 @@ class BusProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      print('Error calculating wait times: $e');
     }
 
     // Iterative validation: find route, validate all segments, exclude bad lines, retry
@@ -449,7 +444,6 @@ class BusProvider with ChangeNotifier {
         return bestArrival - currentMinutes;
       }
     } catch (e) {
-      print('Error getting schedule for wait time: $e');
     }
     return null;
   }
@@ -547,7 +541,6 @@ class BusProvider with ChangeNotifier {
         }
       }
     } catch (e) {
-      print('Error calculating predicted arrival for street: $e');
     }
     return null;
   }

@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter/foundation.dart';
 import '../models/linha.dart';
 import '../models/itinerario.dart';
 import '../models/horario.dart';
 import '../providers/bus_provider.dart';
+import '../services/kml_service.dart';
 import '../utils/time_utils.dart';
 import 'map_screen.dart';
 
@@ -21,14 +25,17 @@ class LineDetailScreen extends StatefulWidget {
 class _LineDetailScreenState extends State<LineDetailScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late WebViewController _webControllerIda;
+  late WebViewController _webControllerVolta;
   Timer? _timer;
   Future<ItinerarioCompleto>? _itineraryFuture;
   Future<List<HorarioPosto>>? _scheduleFuture;
+  final KmlService _kmlService = KmlService();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     
     // Initialize futures once
     final provider = Provider.of<BusProvider>(context, listen: false);
@@ -37,12 +44,49 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     String today = DateFormat('yyyyMMdd').format(DateTime.now());
     _scheduleFuture = provider.getHorarios(widget.linha.numero, today);
 
-    // Update every 30 seconds to keep the countdown fresh
+    _initWebControllers();
+
+    // Timer apenas para atualizar horários (aba 0 e 1)
+    // Se estiver na aba do mapa (2), não faz setState para evitar recarregar
     _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted) {
+      if (mounted && _tabController.index != 2) {
         setState(() {});
       }
     });
+  }
+
+  void _initWebControllers() {
+    _webControllerIda = _createWebViewController();
+    _webControllerVolta = _createWebViewController();
+  }
+
+  WebViewController _createWebViewController() {
+    late final PlatformWebViewControllerCreationParams params;
+
+    if (WebViewPlatform.instance == null) {
+      params = const PlatformWebViewControllerCreationParams();
+    } else {
+      params = const PlatformWebViewControllerCreationParams();
+    }
+
+    final WebViewController controller =
+        WebViewController.fromPlatformCreationParams(params);
+
+    if (!kIsWeb) {
+      controller.setJavaScriptMode(JavaScriptMode.unrestricted);
+      controller.setBackgroundColor(const Color(0x00000000));
+      controller.setNavigationDelegate(
+        NavigationDelegate(
+          onPageFinished: (String url) {
+            if (mounted) {
+              setState(() {});
+            }
+          },
+        ),
+      );
+    }
+
+    return controller;
   }
 
   @override
@@ -66,12 +110,13 @@ class _LineDetailScreenState extends State<LineDetailScreen>
           tabs: const [
             Tab(text: 'Itinerário'),
             Tab(text: 'Horários'),
+            Tab(text: 'Rota'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildItineraryTab(), _buildScheduleTab()],
+        children: [_buildItineraryTab(), _buildScheduleTab(), _buildMapTab()],
       ),
     );
   }
@@ -331,5 +376,173 @@ class _LineDetailScreenState extends State<LineDetailScreen>
         );
       },
     );
+  }
+
+  Widget _buildMapTab() {
+    return FutureBuilder<ItinerarioCompleto>(
+      future: _itineraryFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Erro ao carregar mapa: ${snapshot.error}'));
+        }
+
+        return DefaultTabController(
+          length: 2,
+          child: Column(
+            children: [
+              const TabBar(
+                labelColor: Colors.blue,
+                unselectedLabelColor: Colors.grey,
+                tabs: [
+                  Tab(text: 'Ida'),
+                  Tab(text: 'Volta'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(
+                  children: [
+                    _buildMapContent(direction: 'Ida', controller: _webControllerIda),
+                    _buildMapContent(direction: 'Volta', controller: _webControllerVolta),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMapContent({required String direction, required WebViewController controller}) {
+    return FutureBuilder<List<List<double>>>(
+      future: _loadRouteCoordinates(direction: direction),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Erro ao carregar rota: ${snapshot.error}'));
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return const Center(child: Text('Nenhuma rota encontrada'));
+        }
+
+        final route = snapshot.data!;
+        _loadHtmlContent(route, direction, controller);
+        
+        return WebViewWidget(controller: controller);
+      },
+    );
+  }
+
+  Future<List<List<double>>> _loadRouteCoordinates({required String direction}) async {
+    // Extract line codes for IDA or VOLTA
+    // KML format: "numero - rota - Ida/Volta" com possibilidade de "/1" ou "/2" no rota
+    final baseLine = widget.linha.numero;
+    final nomeRota = widget.linha.nome;
+    
+    // Tentar formatos:
+    // 1. Com zero à esquerda e sem sufixo: "070 - Cuca Barra/Parangaba - Ida"
+    // 2. Com zero à esquerda e com sufixo: "070 - Cuca Barra/Parangaba/1 - Ida"
+    // 3. Sem zero e sem sufixo: "70 - Cuca Barra/Parangaba - Ida"
+    // 4. Sem zero e com sufixo: "70 - Cuca Barra/Parangaba/1 - Ida"
+    
+    final lineFormats = [
+      '${baseLine.toString().padLeft(3, '0')} - $nomeRota/1 - $direction',
+      '${baseLine.toString().padLeft(3, '0')} - $nomeRota - $direction',
+      '${baseLine.toString().padLeft(2, '0')} - $nomeRota/1 - $direction',
+      '${baseLine.toString().padLeft(2, '0')} - $nomeRota - $direction',
+      '$baseLine - $nomeRota - $direction',
+    ];
+
+
+    for (var lineName in lineFormats) {
+      try {
+        final routes = await _kmlService.getCoordinatesForLines([lineName]);
+        if (routes.isNotEmpty && routes[0].isNotEmpty) {
+          return routes[0];
+        }
+      } catch (e) {
+      }
+    }
+    
+    return [];
+  }
+
+  void _loadHtmlContent(List<List<double>> route, String direction, WebViewController controller) {
+    final html = _buildMapHtml(route, direction);
+    controller.loadHtmlString(html);
+  }
+
+  String _buildMapHtml(List<List<double>> route, String direction) {
+    final color = direction == 'Ida' ? '#0000FF' : '#FF4500';
+    final coordsJson = jsonEncode(route);
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@8.2.0/ol.css" />
+  <script src="https://cdn.jsdelivr.net/npm/ol@8.2.0/dist/ol.js"></script>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
+    #map { height: 100%; width: 100%; }
+    .info { padding: 8px; background: rgba(255,255,255,0.8); }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    const coords = $coordsJson;
+    
+    const features = [];
+    if (coords && coords.length > 0) {
+      const transformedCoords = coords.map(c => ol.proj.transform([c[0], c[1]], 'EPSG:4326', 'EPSG:3857'));
+      features.push(new ol.Feature({
+        geometry: new ol.geom.LineString(transformedCoords),
+        name: '$direction'
+      }));
+    }
+    
+    const vectorSource = new ol.source.Vector({ features: features });
+    const vectorLayer = new ol.layer.Vector({
+      source: vectorSource,
+      style: new ol.style.Style({
+        stroke: new ol.style.Stroke({
+          color: '$color',
+          width: 4
+        })
+      })
+    });
+
+    const map = new ol.Map({
+      target: 'map',
+      layers: [
+        new ol.layer.Tile({
+          source: new ol.source.OSM()
+        }),
+        vectorLayer
+      ],
+      view: new ol.View({
+        center: ol.proj.transform([-38.52, -3.73], 'EPSG:4326', 'EPSG:3857'),
+        zoom: 11
+      })
+    });
+
+    // Fit to route
+    if (features.length > 0) {
+      const extent = ol.extent.createEmpty();
+      features.forEach(f => ol.extent.extend(extent, f.getGeometry().getExtent()));
+      map.getView().fit(extent, { padding: [50, 50, 50, 50] });
+    }
+  </script>
+</body>
+</html>
+    ''';
   }
 }
