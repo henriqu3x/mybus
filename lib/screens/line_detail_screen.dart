@@ -78,9 +78,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
       controller.setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
-            if (mounted) {
-              setState(() {});
-            }
+            // No need to call setState here as it can cause infinite reloading
           },
         ),
       );
