@@ -11,6 +11,8 @@ import 'route_planner_screen.dart';
 import 'alert_setup_screen.dart';
 import 'lines_screen.dart';
 import 'stop_detail_screen.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 
 class HomeMapScreen extends StatefulWidget {
   const HomeMapScreen({super.key});
@@ -214,21 +216,26 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           map.addLayer(userLayer);
 
           map.on('click', function(evt) {
-              const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
-                  return feature;
-              });
-              
-              if (feature) {
-                  const items = feature.get('features');
-                  if (items && items.length === 1) {
-                      const stopId = items[0].getId();
-                      window.location.href = 'mybus://stop/' + stopId;
-                  } else if (items && items.length > 1) {
-                       const extent = feature.getGeometry().getExtent();
-                       map.getView().fit(extent, {padding: [100, 100, 100, 100], duration: 500});
-                  }
-              }
+          const feature = map.forEachFeatureAtPixel(evt.pixel, function(feature) {
+              return feature;
           });
+          
+          if (feature) {
+              const items = feature.get('features');
+              if (items && items.length === 1) {
+                  const stopId = items[0].getId();
+                  window.location.href = 'mybus://stop/' + stopId;
+              } else if (items && items.length > 1) {
+                  const extent = feature.getGeometry().getExtent();
+                  // AJUSTE AQUI: Adicionamos o maxZoom
+                  map.getView().fit(extent, {
+                      padding: [100, 100, 100, 100], 
+                      duration: 500,
+                      maxZoom: 17 // Altere este número para o nível de zoom que você achar ideal
+                  });
+              }
+          }
+      });
         </script>
       </body>
       </html>
@@ -297,7 +304,15 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       ),
       body: Stack(
         children: [
-          WebViewWidget(controller: _controller),
+          WebViewWidget(
+            controller: _controller,
+            // O bloco abaixo garante que o mapa responda ao toque sem travar
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(
+                () => EagerGestureRecognizer(),
+              ),
+            },
+          ),
           if (_isLoading) const Center(child: CircularProgressIndicator()),
         ],
       ),

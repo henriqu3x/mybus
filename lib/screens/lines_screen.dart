@@ -18,6 +18,8 @@ class LinesScreen extends StatefulWidget {
 
 class _LinesScreenState extends State<LinesScreen> {
   final TextEditingController _searchController = TextEditingController();
+  late BusProvider _busProvider;
+
   List<Favorito> _favoritesLines = [];
   bool _loadingFavorites = true;
 
@@ -43,6 +45,25 @@ class _LinesScreenState extends State<LinesScreen> {
         _loadingFavorites = false;
       });
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 2. Salva a referência do provider enquanto o context ainda é válido
+    _busProvider = Provider.of<BusProvider>(context, listen: false);
+  }
+
+  @override
+  void dispose() {
+    // O microtask agenda a execução para o próximo milissegundo disponível,
+    // saindo do momento em que a árvore está "travada".
+    Future.microtask(() {
+      _busProvider.filterLinhas('');
+    });
+    
+    _searchController.dispose();
+    super.dispose();
   }
 
   @override

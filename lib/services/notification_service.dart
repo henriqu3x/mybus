@@ -1,80 +1,108 @@
-// lib/services/notification_service.dart
-
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
-import 'package:vibration/vibration.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 class NotificationService {
-  // 1. Singleton Pattern para garantir uma única instância
-  static final NotificationService _instance = NotificationService._internal();
+  // Singleton
+  static final NotificationService _instance =
+      NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+  final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  // 2. Inicialização do Serviço
+  bool _initialized = false;
+
+  /// Inicialização obrigatória
   Future<void> init() async {
-    // Inicializa os dados de fusos horários
+    if (_initialized) return;
+
+    // Timezone
     tz.initializeTimeZones();
-    // Define o timezone local para Fortaleza (Ceará, Brasil)
-    tz.setLocalLocation(tz.getLocation('America/Fortaleza'));
+    tz.setLocalLocation(tz.local);
 
-    // Configurações para Android
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    // Init Android
+    const androidInit = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
 
-    const InitializationSettings initializationSettings =
-        InitializationSettings(android: initializationSettingsAndroid);
+    const initSettings = InitializationSettings(
+      android: androidInit,
+    );
 
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-  }
+    await _plugin.initialize(initSettings);
 
-  // 3. Solicitação de Permissões (necessária para Android 13+)
-  Future<bool> requestPermissions() async {
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+    // Criação explícita do canal (OBRIGATÓRIO)
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
 
-    final bool? granted = await androidImplementation?.requestNotificationsPermission();
-    
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'bus_alerts',
+        'Bus Alerts',
+        description: 'Notifications for bus planning alerts',
+        importance: Importance.high,
+      ),
+    );
+
+    _initialized = true;
+  }
+
+  /// Permissão (Android 13+)
+  Future<bool> requestPermissions() async {
+    final androidPlugin =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+
+    final granted =
+        await androidPlugin?.requestNotificationsPermission();
+
     return granted ?? false;
   }
 
-  // 4. Agendamento da Notificação
+  /// Agendamento simples (SEM alarme exato)
   Future<void> scheduleNotification({
     required int id,
     required String title,
     required String body,
     required DateTime scheduledDate,
   }) async {
-    await flutterLocalNotificationsPlugin.zonedSchedule(
+    if (!_initialized) {
+      throw Exception(
+        'NotificationService não inicializado. '
+        'Chame init() antes.',
+      );
+    }
+
+    await _plugin.zonedSchedule(
       id,
       title,
       body,
-      // Converte DateTime para TZDateTime usando o fuso horário local
       tz.TZDateTime.from(scheduledDate, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
           'bus_alerts',
           'Bus Alerts',
-          channelDescription: 'Notifications for bus arrivals',
-          importance: Importance.max,
+          channelDescription:
+              'Notifications for bus planning alerts',
+          importance: Importance.high,
           priority: Priority.high,
         ),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      // O parâmetro 'uiLocalNotificationDateInterpretation' foi removido
-      // conforme a correção, pois não é usado em zonedSchedule.
+      androidScheduleMode: AndroidScheduleMode.inexact,
+      matchDateTimeComponents: null,
     );
   }
 
-  // 5. Função de Vibração Opcional
-  Future<void> triggerVibration() async {
-    if (await Vibration.hasVibrator() ?? false) {
-      // Padrão de vibração: 500ms ligada, 1000ms desligada, 500ms ligada, 1000ms desligada
-      Vibration.vibrate(pattern: [500, 1000, 500, 1000]);
-    }
+  /// Cancelar uma notificação
+  Future<void> cancel(int id) async {
+    await _plugin.cancel(id);
+  }
+
+  /// Cancelar todas
+  Future<void> cancelAll() async {
+    await _plugin.cancelAll();
   }
 }

@@ -12,6 +12,8 @@ import '../providers/bus_provider.dart';
 import '../services/kml_service.dart';
 import '../utils/time_utils.dart';
 import 'map_screen.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 
 class LineDetailScreen extends StatefulWidget {
   final Linha linha;
@@ -431,7 +433,15 @@ class _LineDetailScreenState extends State<LineDetailScreen>
         final route = snapshot.data!;
         _loadHtmlContent(route, direction, controller);
         
-        return WebViewWidget(controller: controller);
+        return WebViewWidget(
+          controller: controller,
+          // ESTA É A PARTE PRINCIPAL:
+          gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+            Factory<OneSequenceGestureRecognizer>(
+              () => EagerGestureRecognizer(),
+            ),
+          },
+        );
       },
     );
   }
@@ -484,11 +494,12 @@ class _LineDetailScreenState extends State<LineDetailScreen>
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@8.2.0/ol.css" />
   <script src="https://cdn.jsdelivr.net/npm/ol@8.2.0/dist/ol.js"></script>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
+    /* touch-action: none impede o scroll da página, focando o gesto no OpenLayers */
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; touch-action: none; }
     #map { height: 100%; width: 100%; }
     .info { padding: 8px; background: rgba(255,255,255,0.8); }
   </style>
