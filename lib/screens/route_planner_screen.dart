@@ -3,10 +3,12 @@ import 'package:provider/provider.dart';
 import '../providers/bus_provider.dart';
 import '../models/logradouro.dart';
 import '../models/trip_segment.dart';
+import '../models/linha.dart';
 import '../utils/graph_utils.dart';
 import '../utils/time_utils.dart';
 import 'route_detail_screen.dart';
 import 'route_map_screen.dart';
+import 'line_detail_screen.dart';
 
 // --------------------------------------------------------------------
 
@@ -602,6 +604,23 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                   Card(
                     margin: const EdgeInsets.symmetric(vertical: 8),
                     child: ListTile(
+                      onTap: () {
+                        final lineNameClean = segment.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '');
+                        final match = RegExp(r'^(\d+)').firstMatch(lineNameClean);
+                        if (match != null) {
+                          final lineNum = match.group(1)!;
+                          final provider = Provider.of<BusProvider>(context, listen: false);
+                          final linha = provider.getLineByNumber(lineNum);
+                          if (linha != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => LineDetailScreen(linha: linha),
+                              ),
+                            );
+                          }
+                        }
+                      },
                       leading: const Icon(
                         Icons.directions_bus,
                         color: Colors.blue,
