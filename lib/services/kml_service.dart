@@ -416,4 +416,67 @@ class KmlService {
 
     return routeCoordinates.sublist(clampedStart, clampedEnd + 1);
   }
+  /// Extrai todas as linhas únicas disponíveis no arquivo KML de paradas
+  Future<List<String>> getUniqueLines() async {
+    final stops = await loadStopsMetadata();
+    final allLines = <String>{};
+    
+    for (var stop in stops) {
+      for (var line in stop.lines) {
+        allLines.add(line);
+      }
+    }
+    
+    final sortedLines = allLines.toList()..sort((a, b) {
+       // Tenta extrair números para ordenação natural (ex: "042" antes de "371")
+       final aNum = int.tryParse(a.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
+       final bNum = int.tryParse(b.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
+       if (aNum != null && bNum != null) {
+         return aNum.compareTo(bNum);
+       }
+       return a.compareTo(b);
+    });
+    
+    return sortedLines;
+  }
+
+  /// Retorna uma lista com todas as linhas "completas" encontradas no KML de rotas.
+  /// Formato esperado: "371 - Parangaba/José Bastos/Centro - Ida"
+  /// Isso é útil para o autocomplete.
+  Future<List<String>> getAllFullLineNames() async {
+    await loadKmlData();
+    if (_document == null) return [];
+
+    final placemarks = _document!.findAllElements('Placemark');
+    final Set<String> uniqueNames = {};
+
+    for (var placemark in placemarks) {
+      final nameElement = placemark.getElement('name');
+      if (nameElement != null) {
+        uniqueNames.add(nameElement.innerText.trim());
+      }
+    }
+
+    final sortedList = uniqueNames.toList()..sort((a, b) {
+       // Tenta extrair números para ordenação natural
+       final aNum = int.tryParse(a.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
+       final bNum = int.tryParse(b.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
+       if (aNum != null && bNum != null) {
+         return aNum.compareTo(bNum);
+       }
+       return a.compareTo(b);
+    });
+
+    return sortedList;
+  }
+
+  /// Retorna todas as paradas que servem uma determinada linha
+  Future<List<StopInfo>> getStopsForLine(String lineName) async {
+    final stops = await loadStopsMetadata();
+    final normalizedLine = lineName.trim();
+    
+    return stops.where((stop) {
+      return stop.lines.any((l) => l.trim() == normalizedLine);
+    }).toList();
+  }
 }

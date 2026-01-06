@@ -105,4 +105,27 @@ class NotificationService {
   Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }
+  /// Mostrar notificação imediata
+  Future<void> showImmediateNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    if (!_initialized) await init();
+
+    await _plugin.show(
+      id,
+      title,
+      body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'bus_alerts',
+          'Bus Alerts',
+          channelDescription: 'Notifications for bus planning alerts',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+    );
+  }
 }

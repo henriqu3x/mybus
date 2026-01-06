@@ -11,6 +11,9 @@ import 'route_planner_screen.dart';
 import 'alert_setup_screen.dart';
 import 'lines_screen.dart';
 import 'stop_detail_screen.dart';
+import 'real_time_selection_screen.dart';
+import 'real_time_travel_screen.dart';
+import '../services/persistence_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 
@@ -28,10 +31,14 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   List<StopInfo> _stops = [];
   Position? _userPosition;
 
+  bool _hasActiveTrip = false;
+  Map<String, dynamic>? _currentTripData;
+
   @override
   void initState() {
     super.initState();
     _initController();
+    _checkActiveTrip(autoNav: true);
     _loadData();
   }
 
@@ -72,6 +79,33 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     }
 
     _controller = controller;
+  }
+
+  Future<void> _checkActiveTrip({bool autoNav = false}) async {
+    final trip = await PersistenceService().getActiveTrip();
+    if (mounted) {
+      setState(() {
+        _hasActiveTrip = trip != null;
+        _currentTripData = trip;
+      });
+
+      if (trip != null && autoNav) {
+        _navigateToTrip();
+      }
+    }
+  }
+
+  void _navigateToTrip() {
+    if (_currentTripData == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RealTimeTravelScreen(
+          lineName: _currentTripData!['lineName'],
+          destinationStop: _currentTripData!['destination'],
+        ),
+      ),
+    ).then((_) => _checkActiveTrip(autoNav: false));
   }
 
   Future<void> _loadData() async {
@@ -267,6 +301,18 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.location_on_outlined),
+            tooltip: 'Viagem em Tempo Real',
+            onPressed: () {
+               Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const RealTimeSelectionScreen(),
+                ),
+              ).then((_) => _checkActiveTrip(autoNav: false));
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.list),
             tooltip: 'Linhas',
             onPressed: () {
@@ -316,6 +362,16 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           if (_isLoading) const Center(child: CircularProgressIndicator()),
         ],
       ),
+      floatingActionButton: _hasActiveTrip
+          ? FloatingActionButton.extended(
+              onPressed: _navigateToTrip,
+              label: const Text('Retomar Viagem'),
+              icon: const Icon(Icons.directions_bus),
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            )
+          : null,
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
 }
