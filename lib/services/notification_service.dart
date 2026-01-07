@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -17,6 +18,12 @@ class NotificationService {
   /// Inicialização obrigatória
   Future<void> init() async {
     if (_initialized) return;
+    
+    // Web safe-guard: Do not initialize Android/local notifications on Web
+    if (kIsWeb) {
+      _initialized = true;
+      return;
+    }
 
     // Timezone
     tz.initializeTimeZones();
@@ -52,6 +59,8 @@ class NotificationService {
 
   /// Permissão (Android 13+)
   Future<bool> requestPermissions() async {
+    if (kIsWeb) return true; // Pretend permission granted
+
     final androidPlugin =
         _plugin.resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
@@ -69,12 +78,8 @@ class NotificationService {
     required String body,
     required DateTime scheduledDate,
   }) async {
-    if (!_initialized) {
-      throw Exception(
-        'NotificationService não inicializado. '
-        'Chame init() antes.',
-      );
-    }
+    if (!_initialized) await init();
+    if (kIsWeb) return; // No-op on web
 
     await _plugin.zonedSchedule(
       id,
@@ -98,11 +103,13 @@ class NotificationService {
 
   /// Cancelar uma notificação
   Future<void> cancel(int id) async {
+    if (kIsWeb) return;
     await _plugin.cancel(id);
   }
 
   /// Cancelar todas
   Future<void> cancelAll() async {
+     if (kIsWeb) return;
     await _plugin.cancelAll();
   }
   /// Mostrar notificação imediata
@@ -112,6 +119,7 @@ class NotificationService {
     required String body,
   }) async {
     if (!_initialized) await init();
+    if (kIsWeb) return; // No-op on web
 
     await _plugin.show(
       id,

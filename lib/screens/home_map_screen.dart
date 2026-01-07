@@ -38,7 +38,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   void initState() {
     super.initState();
     _initController();
-    _checkActiveTrip(autoNav: true);
+    _checkActiveTrip(autoNav: false);
     _loadData();
   }
 
