@@ -20,7 +20,8 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
   ItinerarioCompleto? _itinerarioCompleto;
   String _selectedDirection = 'Ida'; // 'Ida' or 'Volta'
   Ponto? _selectedPonto;
-  String? _estimatedArrivalTime;
+  List<String> _upcomingArrivalTimes = [];
+  String? _selectedArrivalTime;
   int _alertMinutesBefore = 5;
   bool _isLoadingItinerary = false;
 
@@ -36,7 +37,8 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
       _selectedLinha = linha;
       _itinerarioCompleto = null;
       _selectedPonto = null;
-      _estimatedArrivalTime = null;
+      _upcomingArrivalTimes = [];
+      _selectedArrivalTime = null;
     });
 
     try {
@@ -71,7 +73,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
     }
   }
 
-  void _calculateArrivalTime() async {
+  void _calculateArrivalTimes() async {
     if (_selectedLinha == null ||
         _selectedPonto == null ||
         _itinerarioCompleto == null)
@@ -81,8 +83,12 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
     String today = DateFormat('yyyyMMdd').format(DateTime.now());
     final horarios = await provider.getHorarios(_selectedLinha!.numero, today);
 
+    setState(() {
+      _upcomingArrivalTimes = [];
+      _selectedArrivalTime = null;
+    });
+
     if (horarios.isEmpty) {
-      setState(() => _estimatedArrivalTime = 'Sem horários hoje');
       return;
     }
 
@@ -104,6 +110,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
     }
 
     if (!found) {
+      // Fallback logic
       totalDist = 0;
       for (var ponto in currentItinerario.pontos) {
         if (ponto.nome == _selectedPonto!.nome) {
@@ -114,18 +121,15 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
       }
     }
 
-    if (!found) {
-      setState(() => _estimatedArrivalTime = 'Ponto não encontrado no itinerário');
-      return;
-    }
+    if (!found) return;
 
     int travelMinutes = TimeUtils.calculateTravelTimeMinutes(totalDist);
     
-    // Find the next arrival time at this specific stop
+    // Find all next arrival times
     final now = TimeOfDay.now();
     final currentMinutes = now.hour * 60 + now.minute;
     
-    int? bestArrivalMinutes;
+    List<int> validArrivalMinutes = [];
 
     // Find matching control point
     HorarioPosto? matchingPosto;
@@ -152,9 +156,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
           final arrivalMinutes = departureMinutes + travelMinutes;
           
           if (arrivalMinutes > currentMinutes) {
-            if (bestArrivalMinutes == null || arrivalMinutes < bestArrivalMinutes) {
-              bestArrivalMinutes = arrivalMinutes;
-            }
+             validArrivalMinutes.add(arrivalMinutes);
           }
         } catch (e) {
           // ignore
@@ -162,17 +164,21 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
       }
     }
 
-    if (bestArrivalMinutes != null) {
-      final h = (bestArrivalMinutes ~/ 60) % 24;
-      final m = bestArrivalMinutes % 60;
-      final arrivalTime = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    validArrivalMinutes.sort();
+
+    List<String> formattedTimes = validArrivalMinutes.map((minutes) {
+      final h = (minutes ~/ 60) % 24;
+      final m = minutes % 60;
+      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+    }).toList();
       
-      setState(() {
-        _estimatedArrivalTime = arrivalTime;
-      });
-    } else {
-      setState(() => _estimatedArrivalTime = 'Sem mais ônibus hoje');
-    }
+    setState(() {
+      _upcomingArrivalTimes = formattedTimes;
+      // removed auto-select to force user choice or maybe select first?
+      if (formattedTimes.isNotEmpty) {
+        _selectedArrivalTime = formattedTimes.first;
+      }
+    });
   }
 
   @override
@@ -256,7 +262,8 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
                               setState(() {
                                 _selectedDirection = val!;
                                 _selectedPonto = null;
-                                _estimatedArrivalTime = null;
+                                _upcomingArrivalTimes = [];
+                                _selectedArrivalTime = null;
                               });
                             }
                           : null,
@@ -272,7 +279,8 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
                               setState(() {
                                 _selectedDirection = val!;
                                 _selectedPonto = null;
-                                _estimatedArrivalTime = null;
+                                _upcomingArrivalTimes = [];
+                                _selectedArrivalTime = null;
                               });
                             }
                           : null,
@@ -308,37 +316,51 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
                   setState(() {
                     _selectedPonto = val;
                   });
-                  _calculateArrivalTime();
+                  _calculateArrivalTimes();
                 },
               ),
             ],
 
-            if (_estimatedArrivalTime != null) ...[
+            if (_selectedPonto != null) ...[
               const SizedBox(height: 20),
-              Card(
-                color: Colors.blue[50],
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      const Text(
+              
+              if (_upcomingArrivalTimes.isEmpty)
+                const Padding(
+                   padding: EdgeInsets.all(8.0),
+                   child: Text(
+                     "Nenhuma previsão encontrada para hoje ou horários esgotados.",
+                     style: TextStyle(color: Colors.orange),
+                   ),
+                )
+              else 
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
                         'Previsão de Chegada no Ponto',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _estimatedArrivalTime!,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      decoration: const InputDecoration(
+                        labelText: 'Escolha o horário do ônibus',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.access_time),
                       ),
-                    ],
-                  ),
+                      value: _selectedArrivalTime,
+                      items: _upcomingArrivalTimes.map((time) {
+                        return DropdownMenuItem(
+                          value: time,
+                          child: Text(time),
+                        );
+                      }).toList(),
+                      onChanged: (val) {
+                         setState(() => _selectedArrivalTime = val);
+                      }
+                    ),
+                  ],
                 ),
-              ),
-
+                
               const SizedBox(height: 20),
               const Text(
                 '3. Configurar Alerta',
@@ -365,8 +387,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
                   icon: const Icon(Icons.alarm_add),
                   label: const Text('Agendar Alerta'),
                   onPressed:
-                      (_estimatedArrivalTime != null &&
-                          !_estimatedArrivalTime!.contains('Sem'))
+                      (_selectedArrivalTime != null)
                       ? _scheduleAlert
                       : null,
                   style: ElevatedButton.styleFrom(
@@ -382,10 +403,10 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
   }
 
   void _scheduleAlert() {
-    if (_estimatedArrivalTime == null || _selectedLinha == null) return;
+    if (_selectedArrivalTime == null || _selectedLinha == null) return;
 
     final now = DateTime.now();
-    final parts = _estimatedArrivalTime!.split(':');
+    final parts = _selectedArrivalTime!.split(':');
     final hour = int.parse(parts[0]);
     final minute = int.parse(parts[1]);
 
@@ -409,7 +430,7 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title: 'Prepare-se para ir para a parada!',
       body:
-          'O ônibus da linha ${_selectedLinha!.numeroNome} chegará em breve (aprox. $_estimatedArrivalTime).',
+          'O ônibus da linha ${_selectedLinha!.numeroNome} chegará às approx. $_selectedArrivalTime.',
       scheduledDate: alertDate,
     );
 
