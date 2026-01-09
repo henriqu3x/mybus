@@ -16,6 +16,7 @@ import 'real_time_travel_screen.dart';
 import '../services/persistence_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'dart:async';
 
 class HomeMapScreen extends StatefulWidget {
   const HomeMapScreen({super.key});
@@ -30,6 +31,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   bool _isLoading = true;
   List<StopInfo> _stops = [];
   Position? _userPosition;
+  StreamSubscription<Position>? _positionStream;
 
   bool _hasActiveTrip = false;
   Map<String, dynamic>? _currentTripData;
@@ -117,23 +119,45 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-      }
-
       if (permission != LocationPermission.deniedForever &&
-          permission != LocationPermission.denied) {
-        _userPosition = await Geolocator.getCurrentPosition();
+        permission != LocationPermission.denied) {
+      
+      // 1. Pega a posição inicial para o mapa começar no lugar certo
+      _userPosition = await Geolocator.getCurrentPosition();
+      await _positionStream?.cancel();
+
+      // 2. Inicia o Stream para atualizar o ícone quando o usuário se mexer
+      _positionStream = Geolocator.getPositionStream(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          distanceFilter: 5,
+        ),
+      ).listen((Position position) {
+        if (mounted) { // Verifica se a tela ainda existe antes de atualizar
+          _updateUserMarkerInJS(position);
+        }
+      });
       }
     } catch (e) {
-      print("Error getting location: $e");
+      debugPrint("Erro ao carregar dados de localização: $e");
+      // Opcional: Mostrar um SnackBar avisando que o mapa iniciará no centro padrão
     }
 
-    // 2. Load Stops
     _stops = await _kmlService.loadStopsMetadata();
-
-    // 3. Render Map
     _loadHtmlContent();
+  }
+
+  void _updateUserMarkerInJS(Position position) {
+    final jsCode = '''
+      if (window.userFeature) {
+        const newCoord = ol.proj.fromLonLat([${position.longitude}, ${position.latitude}]);
+        window.userFeature.getGeometry().setCoordinates(newCoord);
+        console.log("Marcador movido para: " + [${position.longitude}, ${position.latitude}]);
+      } else {
+        console.error("userFeature não encontrada!");
+      }
+    ''';
+    _controller.runJavaScript(jsCode);
   }
 
   void _showStopDetails(int stopId) {
@@ -234,10 +258,11 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
           map.addLayer(clusters);
           
-          const userFeature = new ol.Feature({
-               geometry: new ol.geom.Point(ol.proj.fromLonLat(userCenter))
+          window.userFeature = new ol.Feature({ 
+              geometry: new ol.geom.Point(ol.proj.fromLonLat(userCenter))
           });
-          userFeature.setStyle(new ol.style.Style({
+
+          window.userFeature.setStyle(new ol.style.Style({
               image: new ol.style.Circle({
                   radius: 8,
                   fill: new ol.style.Fill({color: 'blue'}),
@@ -245,7 +270,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               })
           }));
           const userLayer = new ol.layer.Vector({
-             source: new ol.source.Vector({ features: [userFeature] })
+              source: new ol.source.Vector({ features: [window.userFeature] })
           });
           map.addLayer(userLayer);
 
@@ -374,6 +399,12 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
     );
   }
+
+  @override
+    void dispose() {
+      _positionStream?.cancel(); // Para o GPS
+      super.dispose();
+    }
 }
 
 // Bottom sheet widget que carrega horários automaticamente
