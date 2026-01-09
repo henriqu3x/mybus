@@ -34,99 +34,80 @@ class KmlService {
     }
   }
 
+  List<List<double>> _parseCoordinates(String rawCoords) {
+    final List<List<double>> points = [];
+    // O KML separa pontos por espaço ou quebra de linha
+    final coordsList = rawCoords.trim().split(RegExp(r'\s+'));
+
+    for (var coordString in coordsList) {
+      if (coordString.isEmpty) continue;
+
+      // Cada ponto no KML é "longitude,latitude,altitude"
+      final parts = coordString.split(',');
+      if (parts.length >= 2) {
+        final double? lon = double.tryParse(parts[0].trim());
+        final double? lat = double.tryParse(parts[1].trim());
+
+        if (lat != null && lon != null) {
+          points.add([lon, lat]); // Mantendo o padrão [longitude, latitude]
+        }
+      }
+    }
+    return points;
+  }
+
   /// Busca as coordenadas para uma ou mais linhas.
   /// Retorna uma lista de listas de coordenadas [latitude, longitude].
   /// O formato de retorno é pensado para fácil injeção no JavaScript do OpenLayers.
   Future<List<List<List<double>>>> getCoordinatesForLines(
-    List<String> lineNames,
+    List<String> targetLines,
   ) async {
     await loadKmlData();
+    final List<List<List<double>>> allLinesCoords = [];
+
     if (_document == null) return [];
 
-    final List<List<List<double>>> allRoutesCoordinates = [];
-
+    // Pega todos os Placemarks (rotas) do KML
     final placemarks = _document!.findAllElements('Placemark');
 
-    for (var lineName in lineNames) {
-      final cleanLineName = lineName.trim();
+    for (var targetLine in targetLines) {
+      // 1. Extraímos o código e o sentido da busca (ex: "014" e "Volta")
+      String targetCode = targetLine.split(' - ').first.trim();
+      bool isVolta = targetLine.toLowerCase().contains('volta');
 
-      // Extract line code and direction for flexible matching
-      // Example: "371 - Parangaba/José Bastos/Centro - Ida"
-      String? lineCode;
-      String? direction;
+      for (var placemark in placemarks) {
+        final nameElement = placemark.findElements('name');
+        if (nameElement.isEmpty) continue;
 
-      final parts = cleanLineName.split(' - ');
-      if (parts.isNotEmpty) {
-        lineCode = parts[0]; // "371"
-        if (parts.length >= 3) {
-          direction = parts.last; // "Ida" or "Volta"
-        }
-      }
+        String kmlRouteName = nameElement.first.innerText;
 
-      try {
-        final placemark = placemarks.firstWhere(
-          (element) {
-            final nameElement = element.getElement('name');
-            if (nameElement == null) return false;
+        // 2. Extraímos o código e o sentido do nome que está no KML
+        String kmlCode = kmlRouteName.split(' - ').first.trim();
+        bool kmlIsVolta = kmlRouteName.toLowerCase().contains('volta');
 
-            final kmlName = nameElement.innerText;
-
-            // Try flexible matching: line code at start + direction at end
-            if (lineCode != null && direction != null) {
-              final startsWithCode = kmlName.startsWith(lineCode + ' - ');
-              final endsWithDirection = kmlName.endsWith(' - $direction');
-              if (startsWithCode && endsWithDirection) {
-                return true;
-              }
-            }
-
-            // Fallback to exact match
-            return kmlName == cleanLineName;
-          },
-          orElse: () {
-            throw StateError('No match');
-          },
-        );
-
-        // Agrega todas as LineString presentes no Placemark (alguns KMLs
-        // dividem a rota em múltiplos trechos). Antes pegávamos apenas o
-        // primeiro trecho o que fazia a rota parar no ponto de controle.
-        final lineStringElements = placemark.findAllElements('LineString').toList();
-        if (lineStringElements.isNotEmpty) {
-          final List<List<double>> routeCoords = [];
-          for (var ls in lineStringElements) {
-            final coordinatesText = ls.getElement('coordinates')?.innerText.trim();
-            if (coordinatesText == null || coordinatesText.isEmpty) continue;
-
-            // Separe por qualquer espaço em branco (que pode ser múltiplas quebras)
-            final points = coordinatesText.split(RegExp(r'\s+'));
-            for (var point in points) {
-              final parts = point.split(',');
-              if (parts.length >= 2) {
-                final lon = double.tryParse(parts[0]);
-                final lat = double.tryParse(parts[1]);
-                if (lon != null && lat != null) {
-                  routeCoords.add([lon, lat]);
-                }
-              }
+        // 3. COMPARACAO SEGURA:
+        // Verificamos se o número da linha é igual E se o sentido bate
+        if (kmlCode == targetCode && kmlIsVolta == isVolta) {
+          final lineString = placemark.findElements('LineString').firstOrNull;
+          if (lineString != null) {
+            final coordsElement = lineString
+                .findElements('coordinates')
+                .firstOrNull;
+            if (coordsElement != null) {
+              allLinesCoords.add(_parseCoordinates(coordsElement.innerText));
+              // Encontrou a rota certa, pode pular para a próxima linha da busca
+              break;
             }
           }
-
-          if (routeCoords.isNotEmpty) {
-            allRoutesCoordinates.add(routeCoords);
-          }
         }
-      } catch (e) {
-        // Ignore errors for individual lines
       }
     }
-
-    return allRoutesCoordinates;
+    return allLinesCoords;
   }
 
   static const String _stopsKmlPath = 'assets/paradas_onibus.kml';
   XmlDocument? _stopsDocument;
-  
+
   // lookup from API logradouro id -> list of KML stop ids
   final Map<int, List<int>> _logradouroLookup = {};
   bool _logradouroLookupLoaded = false;
@@ -218,7 +199,9 @@ class KmlService {
   Future<void> _loadLogradouroLookup() async {
     if (_logradouroLookupLoaded) return;
     try {
-      final jsonStr = await rootBundle.loadString('assets/logradouro_lookup.json');
+      final jsonStr = await rootBundle.loadString(
+        'assets/logradouro_lookup.json',
+      );
       final data = jsonDecode(jsonStr);
       if (data is Map) {
         data.forEach((k, v) {
@@ -228,7 +211,9 @@ class KmlService {
             if (v is List) {
               final ids = <int>[];
               for (var item in v) {
-                final iid = (item is int) ? item : int.tryParse(item.toString());
+                final iid = (item is int)
+                    ? item
+                    : int.tryParse(item.toString());
                 if (iid != null) ids.add(iid);
               }
               _logradouroLookup[intKey] = ids;
@@ -250,14 +235,11 @@ class KmlService {
     final stops = await loadStopsMetadata();
     // Debug info to help trace missing mappings
     try {
-      if (!_logradouroLookupLoaded) {
-      }
+      if (!_logradouroLookupLoaded) {}
       if (_logradouroLookup.containsKey(apiId)) {
         final mapped = _logradouroLookup[apiId]!;
-      } else {
-      }
-    } catch (e) {
-    }
+      } else {}
+    } catch (e) {}
 
     final ids = _logradouroLookup[apiId];
     if (ids == null || ids.isEmpty) {
@@ -277,13 +259,19 @@ class KmlService {
   Future<void> _loadNormalizadosMapping() async {
     if (_normalizadosLoaded) return;
     try {
-      final jsonStr = await rootBundle.loadString('assets/logradouros_normalizados.json');
+      final jsonStr = await rootBundle.loadString(
+        'assets/logradouros_normalizados.json',
+      );
       final data = jsonDecode(jsonStr);
       if (data is List) {
         for (var entry in data) {
           if (entry is Map) {
-            final id = (entry['id'] is int) ? entry['id'] : int.tryParse(entry['id'].toString());
-            final nome = (entry['nome'] is String) ? entry['nome'] : entry['nome'].toString();
+            final id = (entry['id'] is int)
+                ? entry['id']
+                : int.tryParse(entry['id'].toString());
+            final nome = (entry['nome'] is String)
+                ? entry['nome']
+                : entry['nome'].toString();
             if (id != null && nome.isNotEmpty) {
               final normalizedName = _normalizeStreetName(nome);
               _streetNameToApiId[normalizedName] = id;
@@ -317,32 +305,36 @@ class KmlService {
   /// [streetName]: nome da rua (ex: "Rua das Flores", "Avenida Paulista")
   /// [busLines]: lista de números de linhas de ônibus (ex: ["369", "371"])
   /// Retorna uma lista de StopInfo que correspondem aos critérios
-  Future<List<StopInfo>> findStopsOnStreet(String streetName, List<String> busLines) async {
+  Future<List<StopInfo>> findStopsOnStreet(
+    String streetName,
+    List<String> busLines,
+  ) async {
     final allStops = await loadStopsMetadata();
     final normalizedStreet = _normalizeStreetName(streetName);
-    
+
     // Normalizar números de linhas (remover prefixos de zeros, etc)
     final normalizedLines = busLines.map((l) => l.trim()).toSet();
-    
+
     final matchingStops = <StopInfo>[];
-    
+
     for (var stop in allStops) {
       final normalizedStopName = _normalizeStreetName(stop.name);
-      
+
       // Verificar se o nome da parada contém a rua
-      if (normalizedStopName.contains(normalizedStreet) || normalizedStreet.contains(normalizedStopName)) {
+      if (normalizedStopName.contains(normalizedStreet) ||
+          normalizedStreet.contains(normalizedStopName)) {
         // Verificar se a parada serve alguma das linhas especificadas
         final hasMatchingLine = stop.lines.any((stopLine) {
           final normalizedStopLine = stopLine.trim();
           return normalizedLines.contains(normalizedStopLine);
         });
-        
+
         if (hasMatchingLine) {
           matchingStops.add(stop);
         }
       }
     }
-    
+
     return matchingStops;
   }
 
@@ -357,7 +349,12 @@ class KmlService {
         .replaceAll(RegExp(r'[óòôõö]'), 'o')
         .replaceAll(RegExp(r'[úùûü]'), 'u')
         .replaceAll(RegExp(r'[ç]'), 'c')
-        .replaceAll(RegExp(r'\b(rua|avenida|av\.|pça|praça|trav|travessa|rod|rodovia|estrada|est\.|r\.)\b'), '')
+        .replaceAll(
+          RegExp(
+            r'\b(rua|avenida|av\.|pça|praça|trav|travessa|rod|rodovia|estrada|est\.|r\.)\b',
+          ),
+          '',
+        )
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
@@ -382,8 +379,10 @@ class KmlService {
       final lat = coord[1];
 
       // Distância euclidiana (simplificada)
-      final distance = sqrt((lat - targetLat) * (lat - targetLat) +
-              (lon - targetLon) * (lon - targetLon));
+      final distance = sqrt(
+        (lat - targetLat) * (lat - targetLat) +
+            (lon - targetLon) * (lon - targetLon),
+      );
 
       if (distance < minDistance) {
         minDistance = distance;
@@ -416,27 +415,37 @@ class KmlService {
 
     return routeCoordinates.sublist(clampedStart, clampedEnd + 1);
   }
+
   /// Extrai todas as linhas únicas disponíveis no arquivo KML de paradas
   Future<List<String>> getUniqueLines() async {
     final stops = await loadStopsMetadata();
     final allLines = <String>{};
-    
+
     for (var stop in stops) {
       for (var line in stop.lines) {
         allLines.add(line);
       }
     }
-    
-    final sortedLines = allLines.toList()..sort((a, b) {
-       // Tenta extrair números para ordenação natural (ex: "042" antes de "371")
-       final aNum = int.tryParse(a.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
-       final bNum = int.tryParse(b.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
-       if (aNum != null && bNum != null) {
-         return aNum.compareTo(bNum);
-       }
-       return a.compareTo(b);
-    });
-    
+
+    final sortedLines = allLines.toList()
+      ..sort((a, b) {
+        // Tenta extrair números para ordenação natural (ex: "042" antes de "371")
+        final aNum = int.tryParse(
+          a
+              .split(RegExp(r'\D+'))
+              .firstWhere((e) => e.isNotEmpty, orElse: () => '0'),
+        );
+        final bNum = int.tryParse(
+          b
+              .split(RegExp(r'\D+'))
+              .firstWhere((e) => e.isNotEmpty, orElse: () => '0'),
+        );
+        if (aNum != null && bNum != null) {
+          return aNum.compareTo(bNum);
+        }
+        return a.compareTo(b);
+      });
+
     return sortedLines;
   }
 
@@ -457,26 +466,93 @@ class KmlService {
       }
     }
 
-    final sortedList = uniqueNames.toList()..sort((a, b) {
-       // Tenta extrair números para ordenação natural
-       final aNum = int.tryParse(a.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
-       final bNum = int.tryParse(b.split(RegExp(r'\D+')).firstWhere((e) => e.isNotEmpty, orElse: () => '0'));
-       if (aNum != null && bNum != null) {
-         return aNum.compareTo(bNum);
-       }
-       return a.compareTo(b);
-    });
+    final sortedList = uniqueNames.toList()
+      ..sort((a, b) {
+        // Tenta extrair números para ordenação natural
+        final aNum = int.tryParse(
+          a
+              .split(RegExp(r'\D+'))
+              .firstWhere((e) => e.isNotEmpty, orElse: () => '0'),
+        );
+        final bNum = int.tryParse(
+          b
+              .split(RegExp(r'\D+'))
+              .firstWhere((e) => e.isNotEmpty, orElse: () => '0'),
+        );
+        if (aNum != null && bNum != null) {
+          return aNum.compareTo(bNum);
+        }
+        return a.compareTo(b);
+      });
 
     return sortedList;
   }
 
   /// Retorna todas as paradas que servem uma determinada linha
   Future<List<StopInfo>> getStopsForLine(String lineName) async {
-    final stops = await loadStopsMetadata();
-    final normalizedLine = lineName.trim();
-    
-    return stops.where((stop) {
-      return stop.lines.any((l) => l.trim() == normalizedLine);
+    // 1. Carrega todas as paradas que mencionam esse código de linha
+    final allStops = await loadStopsMetadata();
+    String lineCode = lineName.split(' - ').first.trim();
+
+    final stopsWithLine = allStops.where((stop) {
+      return stop.lines.any((l) => l.trim() == lineCode);
     }).toList();
+
+    // 2. Carrega a Geometria (Polyline) da rota selecionada (específica Ida ou Volta)
+    final routeData = await getCoordinatesForLines([lineName]);
+    if (routeData.isEmpty)
+      return stopsWithLine; // Fallback caso não ache a rota
+
+    final routePoints = routeData.first; // Lista de [lon, lat]
+
+    // 3. Filtra paradas: Só aceita paradas que estão perto da "linha azul" da rota
+    // Isso remove paradas do sentido oposto automaticamente
+    final List<StopInfo> filteredStops = [];
+    const double threshold = 0.0005; // Aprox. 150 metros de tolerância
+
+    for (var stop in stopsWithLine) {
+      final closest = _findClosestPointInRoute(routePoints, stop.lat, stop.lon);
+
+      // Se a parada estiver muito longe da linha desta rota específica,
+      // ela provavelmente é do sentido oposto ou de outra variante.
+      if (closest.distance < threshold) {
+        filteredStops.add(stop);
+      }
+    }
+
+    return filteredStops;
+  }
+
+  StopInfo? getNextStop(
+    double userLat,
+    double userLon,
+    List<StopInfo> orderedStops,
+    List<List<double>> routeCoordinates,
+  ) {
+    if (orderedStops.isEmpty || routeCoordinates.isEmpty) return null;
+
+    // 1. Descobrimos em que ponto da LineString o usuário está agora
+    final userPos = _findClosestPointInRoute(
+      routeCoordinates,
+      userLat,
+      userLon,
+    );
+
+    // 2. Procuramos a primeira parada cujo 'routeIndex' seja maior que o do usuário
+    for (var stop in orderedStops) {
+      final stopPos = _findClosestPointInRoute(
+        routeCoordinates,
+        stop.lat,
+        stop.lon,
+      );
+
+      // Se o índice da parada na rota é maior que o índice atual do usuário,
+      // significa que o usuário ainda não passou por ela.
+      if (stopPos.index > userPos.index) {
+        return stop;
+      }
+    }
+
+    return null; // Viagem concluída ou última parada
   }
 }

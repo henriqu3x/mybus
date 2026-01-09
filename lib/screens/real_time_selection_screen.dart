@@ -69,7 +69,7 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
     String lineCode = lineName.split(' - ').first.trim();
     
     try {
-      final stops = await _kmlService.getStopsForLine(lineCode);
+      final stops = await _kmlService.getStopsForLine(lineName);
       if (mounted) {
         setState(() {
           _stops = stops;
