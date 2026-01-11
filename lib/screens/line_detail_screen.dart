@@ -33,6 +33,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
   Future<ItinerarioCompleto>? _itineraryFuture;
   Future<List<HorarioPosto>>? _scheduleFuture;
   final KmlService _kmlService = KmlService();
+  
 
   @override
   void initState() {
@@ -56,6 +57,8 @@ class _LineDetailScreenState extends State<LineDetailScreen>
       }
     });
   }
+
+  
 
   void _initWebControllers() {
     _webControllerIda = _createWebViewController();
@@ -265,34 +268,38 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                   final ponto = itinerario.pontos[index];
                   final distance = cumulativeDistances[index];
 
-                  String estimatedArrival = '--';
+                  String estimatedArrivalLabel = '--'; // Ex: "12 min"
+                  String intervalLabel = '';           // Ex: "10:15 - 10:20"
                   Color timeColor = Colors.black;
 
                   if (allDepartureMinutes.isNotEmpty) {
-                    int travelMinutes =
-                        TimeUtils.calculateTravelTimeMinutes(distance);
-                    
-                    // Find the earliest departure that reaches this stop in the future
-                    int? bestArrivalMinutes;
-                    
+                    int travelMinutes = TimeUtils.calculateTravelTimeMinutes(distance);
+                    int? bestArrivalMins;
+
                     for (var depMins in allDepartureMinutes) {
-                       int arrivalMins = depMins + travelMinutes;
-                       if (arrivalMins > currentMinutes) {
-                         bestArrivalMinutes = arrivalMins;
-                         break; // Found the earliest valid bus
-                       }
+                      int arrivalMins = depMins + travelMinutes;
+                      if (arrivalMins > currentMinutes) {
+                        bestArrivalMins = arrivalMins;
+                        break;
+                      }
                     }
 
-                    if (bestArrivalMinutes != null) {
-                      int remaining = bestArrivalMinutes - currentMinutes;
-                      estimatedArrival = '$remaining min';
-                      if (remaining <= 5) {
-                        timeColor = Colors.red;
-                      } else if (remaining <= 15) {
-                        timeColor = Colors.orange;
-                      } else {
-                        timeColor = Colors.green;
-                      }
+                    if (bestArrivalMins != null) {
+                      int remaining = bestArrivalMins - currentMinutes;
+                      estimatedArrivalLabel = '$remaining min';
+                      
+                      // FORMATANDO O INTERVALO (Usando sua TimeUtils)
+                      final h = (bestArrivalMins ~/ 60) % 24;
+                      final m = bestArrivalMins % 60;
+                      final baseTime = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
+                      
+                      // Pega o intervalo (ex: "10:15 - 10:20")
+                      intervalLabel = TimeUtils.getTimeInterval(baseTime, 0);
+
+                      // Cores baseadas no tempo de espera
+                      if (remaining <= 5) timeColor = Colors.red;
+                      else if (remaining <= 15) timeColor = Colors.orange;
+                      else timeColor = Colors.green;
                     }
                   }
 
@@ -303,18 +310,27 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                       '${ponto.distanciaPercorrida}m do anterior',
                     ),
                     trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.access_time, size: 16),
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        estimatedArrivalLabel,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: timeColor,
+                        ),
+                      ),
+                      if (intervalLabel.isNotEmpty)
                         Text(
-                          estimatedArrival,
+                          intervalLabel,
                           style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: timeColor,
+                            fontSize: 12,
+                            color: Colors.grey[600],
                           ),
                         ),
-                      ],
-                    ),
+                    ],
+                  ),
                     onTap: () {
                       Navigator.push(
                         context,

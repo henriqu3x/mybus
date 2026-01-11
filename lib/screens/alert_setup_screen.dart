@@ -167,14 +167,17 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
     validArrivalMinutes.sort();
 
     List<String> formattedTimes = validArrivalMinutes.map((minutes) {
+  // Converte minutos totais de volta para o formato HH:mm base
       final h = (minutes ~/ 60) % 24;
       final m = minutes % 60;
-      return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
-    }).toList();
+      final baseTime = '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
       
+      // Retorna o intervalo usando a função que criamos (passando 0 pois o tempo de viagem já foi somado)
+      return TimeUtils.getTimeInterval(baseTime, 0); 
+    }).toList();
+
     setState(() {
       _upcomingArrivalTimes = formattedTimes;
-      // removed auto-select to force user choice or maybe select first?
       if (formattedTimes.isNotEmpty) {
         _selectedArrivalTime = formattedTimes.first;
       }
@@ -405,8 +408,11 @@ class _AlertSetupScreenState extends State<AlertSetupScreen> {
   void _scheduleAlert() {
     if (_selectedArrivalTime == null || _selectedLinha == null) return;
 
+    // Extrai apenas o primeiro horário do intervalo (ex: "10:13")
+    final String firstTimeInInterval = _selectedArrivalTime!.split(' - ').first;
+    
     final now = DateTime.now();
-    final parts = _selectedArrivalTime!.split(':');
+    final parts = firstTimeInInterval.split(':'); // Agora funciona
     final hour = int.parse(parts[0]);
     final minute = int.parse(parts[1]);
 

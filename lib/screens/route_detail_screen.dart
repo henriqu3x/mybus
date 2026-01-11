@@ -479,6 +479,12 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         final nextArrival = arrivals.first;
         final minutesUntilArrival = nextArrival - currentMinutes;
 
+        // Converta o horário base (em minutos) para String HH:mm antes de passar para o Utils
+        final baseTimeStr = _formatMinutesToTime(nextArrival);
+
+        // Chame sua função de intervalo
+        final intervaloFormatado = TimeUtils.getTimeInterval(baseTimeStr, 0);
+
         Color timeColor = Colors.green;
         if (minutesUntilArrival <= 5) {
           timeColor = Colors.red;
@@ -506,9 +512,9 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                     style: TextStyle(fontSize: 14, color: Colors.grey[700]),
                   ),
                   Text(
-                    '$minutesUntilArrival min',
+                    intervaloFormatado, // Exibirá "14:08 - 14:12"
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: timeColor,
                     ),
@@ -541,12 +547,15 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                 spacing: 8,
                 runSpacing: 8,
                 children: arrivals.skip(1).take(4).map((arrivalMinutes) {
-                  return Chip(
-                    label: Text(_formatMinutesToTime(arrivalMinutes)),
-                    backgroundColor: Colors.grey[200],
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  );
-                }).toList(),
+                final timeStr = _formatMinutesToTime(arrivalMinutes);
+                final interval = TimeUtils.getTimeInterval(timeStr, 0);
+                
+                return Chip(
+                  label: Text(interval, style: const TextStyle(fontSize: 11)),
+                  backgroundColor: Colors.grey[200],
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                );
+              }).toList(),
               ),
             ],
           ],

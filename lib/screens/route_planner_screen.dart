@@ -331,8 +331,12 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     }
 
     // Adiciona tempo para trocas (e.g., 10 minutos por troca REAL)
-    int totalTime =
-        TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
+    int totalTime = TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
+
+    // 2. Criação da String de intervalo para a UI (O que o usuário vai ver)
+    final minTime = (totalTime - 2) > 0 ? (totalTime - 2) : totalTime;
+    final maxTime = totalTime + 2;
+    final timeRangeLabel = "$minTime - $maxTime min";
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -369,7 +373,7 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            '$totalTime min',
+                            '$timeRangeLabel',
                             style: const TextStyle(
                               fontSize: 20,
                               color: Colors.green,
