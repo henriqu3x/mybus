@@ -140,6 +140,8 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Viagem'),
+        backgroundColor: Colors.blue[800],
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
