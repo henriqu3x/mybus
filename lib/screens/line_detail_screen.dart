@@ -350,7 +350,158 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     );
   }
 
+  // Variáveis para a nova funcionalidade de Horários por Ponto
+  String _scheduleMode = 'Terminal'; // 'Terminal' ou 'Ponto'
+  String _selectedScheduleDirection = 'Ida';
+  Ponto? _selectedSchedulePonto;
+  List<String> _calculatedStopTimes = [];
+
+  void _calculateStopTimes() async {
+    if (_selectedSchedulePonto == null) return;
+    
+    // Obter o itinerário completo se ainda não tiver
+    final itinerario = await _itineraryFuture;
+    if (itinerario == null) return;
+
+    final currentItinerario = _selectedScheduleDirection == 'Ida' 
+        ? itinerario.ida 
+        : itinerario.volta;
+    
+    if (currentItinerario == null) return;
+
+    // Calcular distância até o ponto selecionado
+    double totalDist = 0;
+    bool found = false;
+    for (var ponto in currentItinerario.pontos) {
+      if (ponto.logId == _selectedSchedulePonto!.logId) {
+        found = true;
+        break;
+      }
+      totalDist += ponto.distanciaPercorrida;
+    }
+
+    if (!found) {
+       totalDist = 0;
+       for (var ponto in currentItinerario.pontos) {
+        if (ponto.nome == _selectedSchedulePonto!.nome) {
+          found = true;
+          break;
+        }
+        totalDist += ponto.distanciaPercorrida;
+       }
+    }
+
+    if (!found) return;
+
+    // Tempo de viagem estimado em minutos
+    int travelMinutes = TimeUtils.calculateTravelTimeMinutes(totalDist);
+
+    // Obter horários
+    final horarios = await _scheduleFuture;
+    if (horarios == null || horarios.isEmpty) {
+      setState(() => _calculatedStopTimes = []);
+      return;
+    }
+
+    // Encontrar posto de controle correspondente
+    HorarioPosto? matchingPosto;
+      for (var posto in horarios) {
+      if (posto.postoControle.toLowerCase() == currentItinerario.pontoInicial.toLowerCase() ||
+          posto.postoControle.toLowerCase().contains(currentItinerario.pontoInicial.toLowerCase()) ||
+          currentItinerario.pontoInicial.toLowerCase().contains(posto.postoControle.toLowerCase())) {
+        matchingPosto = posto;
+        break;
+      }
+    }
+    
+    if (matchingPosto == null && horarios.length == 1) {
+      matchingPosto = horarios.first;
+    }
+
+    List<int> arrivalMinutesList = [];
+
+    if (matchingPosto != null) {
+      for (var h in matchingPosto.horarios) {
+        try {
+          final parts = h.horario.split(':');
+          final departureMinutes = int.parse(parts[0]) * 60 + int.parse(parts[1]);
+          arrivalMinutesList.add(departureMinutes + travelMinutes);
+        } catch (e) {
+          // ignore
+        }
+      }
+    }
+
+    arrivalMinutesList.sort();
+    
+    // Formatar para exibição HH:mm - HH:mm (intervalo de +/- 2 min)
+    final formatted = arrivalMinutesList.map((minutes) {
+      final startMinutes = minutes - 2;
+      final endMinutes = minutes + 2;
+
+      final hStart = (startMinutes ~/ 60) % 24;
+      final mStart = startMinutes % 60;
+      
+      final hEnd = (endMinutes ~/ 60) % 24;
+      final mEnd = endMinutes % 60;
+
+      final startStr = '${hStart.toString().padLeft(2, '0')}:${mStart.toString().padLeft(2, '0')}';
+      final endStr = '${hEnd.toString().padLeft(2, '0')}:${mEnd.toString().padLeft(2, '0')}';
+      
+      return '$startStr - $endStr';
+    }).toList();
+
+    setState(() {
+      _calculatedStopTimes = formatted;
+    });
+  }
+
   Widget _buildScheduleTab() {
+    return Column(
+      children: [
+        // Toggle entre Terminal e Ponto
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _scheduleMode == 'Terminal' ? Colors.blue : Colors.grey[300],
+                    foregroundColor: _scheduleMode == 'Terminal' ? Colors.white : Colors.black,
+                  ),
+                  onPressed: () => setState(() => _scheduleMode = 'Terminal'),
+                  child: const Text('Saídas do Terminal'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                     backgroundColor: _scheduleMode == 'Ponto' ? Colors.blue : Colors.grey[300],
+                     foregroundColor: _scheduleMode == 'Ponto' ? Colors.white : Colors.black,
+                  ),
+                  onPressed: () => setState(() { 
+                    _scheduleMode = 'Ponto';
+                    // Reset selection if needed, or keep previous state
+                  }),
+                  child: const Text('Chegadas no Ponto'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        
+        Expanded(
+          child: _scheduleMode == 'Terminal' 
+              ? _buildTerminalSchedule() 
+              : _buildStopSchedule(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTerminalSchedule() {
     return FutureBuilder<List<HorarioPosto>>(
       future: _scheduleFuture,
       builder: (context, snapshot) {
@@ -372,25 +523,185 @@ class _LineDetailScreenState extends State<LineDetailScreen>
             final posto = snapshot.data![index];
             return ExpansionTile(
               title: Text(posto.postoControle),
+              initiallyExpanded: true,
               children: [
-                Wrap(
-                  spacing: 8.0,
-                  children: posto.horarios
-                      .map(
-                        (h) => Chip(
-                          label: Text(h.horario),
-                          backgroundColor: h.acessivel == 'sim'
-                              ? Colors.blue[100]
-                              : Colors.grey[200],
-                        ),
-                      )
-                      .toList(),
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: posto.horarios
+                        .map(
+                          (h) => Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: h.acessivel == 'sim' ? Colors.blue[100] : Colors.grey[200],
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.grey[300]!)
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  h.horario, 
+                                  style: const TextStyle(fontWeight: FontWeight.bold)
+                                ),
+                                if (h.acessivel == 'sim') ...[
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.accessible, size: 16, color: Colors.blue),
+                                ]
+                              ],
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
                 ),
               ],
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildStopSchedule() {
+    return FutureBuilder<ItinerarioCompleto>(
+      future: _itineraryFuture, 
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final itinerario = snapshot.data!;
+        
+        // Determinar pontos disponíveis com base na direção
+        final pontos = _selectedScheduleDirection == 'Ida' 
+            ? itinerario.ida?.pontos 
+            : itinerario.volta?.pontos;
+
+        return Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Seletor de Direção
+              Row(
+                children: [
+                  Expanded(
+                    child: RadioListTile<String>(
+                      title: const Text('Ida'),
+                      value: 'Ida',
+                      groupValue: _selectedScheduleDirection,
+                      onChanged: itinerario.ida != null ? (val) {
+                         setState(() {
+                           _selectedScheduleDirection = val!;
+                           _selectedSchedulePonto = null;
+                           _calculatedStopTimes = [];
+                         });
+                      } : null,
+                    ),
+                  ),
+                  Expanded(
+                    child: RadioListTile<String>(
+                      title: const Text('Volta'),
+                      value: 'Volta',
+                      groupValue: _selectedScheduleDirection,
+                      onChanged: itinerario.volta != null ? (val) {
+                         setState(() {
+                           _selectedScheduleDirection = val!;
+                           _selectedSchedulePonto = null;
+                           _calculatedStopTimes = [];
+                         });
+                      } : null,
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 10),
+              
+              // Dropdown de Pontos
+              DropdownButtonFormField<Ponto>(
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Selecione o Ponto',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.location_on),
+                ),
+                value: _selectedSchedulePonto,
+                items: pontos?.map((p) {
+                  return DropdownMenuItem(
+                    value: p,
+                    child: Text(
+                      p.nome, 
+                      overflow: TextOverflow.ellipsis
+                    ),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() => _selectedSchedulePonto = val);
+                  _calculateStopTimes();
+                },
+              ),
+
+              const SizedBox(height: 20),
+              
+              if (_selectedSchedulePonto != null) ...[
+                 Row(
+                   children: [
+                     const Icon(Icons.access_time_filled, color: Colors.blue),
+                     const SizedBox(width: 8),
+                     Expanded(
+                       child: Text(
+                         'Estimativa de chegada em: ${_selectedSchedulePonto!.nome}',
+                         style: const TextStyle(fontWeight: FontWeight.bold),
+                       ),
+                     ),
+                   ],
+                 ),
+                 const SizedBox(height: 10),
+                 if (_calculatedStopTimes.isEmpty)
+                   const Text('Nenhum horário estimado encontrado.')
+                 else
+                   Expanded(
+                     child: GridView.builder(
+                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                         crossAxisCount: 3, // Reduzido para caber texto maior
+                         childAspectRatio: 2.2,
+                         crossAxisSpacing: 8,
+                         mainAxisSpacing: 8,
+                       ),
+                       itemCount: _calculatedStopTimes.length,
+                       itemBuilder: (context, index) {
+                         final time = _calculatedStopTimes[index];
+                         // Highlight times close to now? Optional.
+                         return Container(
+                           alignment: Alignment.center,
+                           decoration: BoxDecoration(
+                             border: Border.all(color: Colors.grey),
+                             borderRadius: BorderRadius.circular(8),
+                           ),
+                           child: Text(
+                             time,
+                             style: const TextStyle(fontSize: 13), // Fonte um pouco menor
+                           ),
+                         );
+                       },
+                     ),
+                   )
+              ] else 
+                const Expanded(
+                  child: Center(
+                    child: Text(
+                      'Selecione um ponto para ver a previsão de horários.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      }
     );
   }
 
