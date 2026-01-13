@@ -4,6 +4,7 @@ import 'providers/bus_provider.dart';
 import 'screens/splash_screen.dart';
 import 'services/favorites_service.dart';
 import 'services/notification_service.dart';
+import 'utils/app_theme.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized before using platform channels
@@ -27,11 +28,10 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [ChangeNotifierProvider(create: (_) => BusProvider())],
       child: MaterialApp(
-        title: 'MyBus',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          useMaterial3: true,
-        ),
+        title: 'No Ponto',
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.dark,
         home: const SplashScreen(),
         debugShowCheckedModeBanner: false,
       ),

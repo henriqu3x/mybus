@@ -156,9 +156,15 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Planejador de Rotas'),
-      backgroundColor: Colors.blue[800],
-      foregroundColor: Colors.white,),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            const Icon(Icons.map_rounded, size: 28),
+            const SizedBox(width: 12),
+            const Text('Planejador de Rotas'),
+          ],
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -268,18 +274,35 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
                 );
               },
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
               onPressed:
                   (_origin != null && _destination != null && !_calculating)
                   ? _calculateRoute
                   : null,
               style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 50),
+                minimumSize: const Size(double.infinity, 56),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                elevation: 2,
               ),
-              child: _calculating
-                  ? const CircularProgressIndicator(color: Colors.white)
-                  : const Text('Calcular Rota'),
+              icon: _calculating
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.search_rounded, size: 24),
+              label: Text(
+                _calculating ? 'Calculando...' : 'Calcular Rota',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: Colors.white,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Expanded(child: _buildRouteResult()),
@@ -342,74 +365,150 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Card de Resumo
-        Card(
-          color: Colors.green[50],
-          child: InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => RouteDetailScreen(
-                    segments: segmentedRoute,
-                    origin: _origin!.nome,
-                    destination: _destination!.nome,
-                    totalDistance: totalDistance,
-                    totalTime: totalTime,
-                  ),
-                ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      Column(
-                        children: [
-                          const Text(
-                            'Tempo Estimado',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '$timeRangeLabel',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        children: [
-                          const Text(
-                            'Distância',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            '${(totalDistance / 1000).toStringAsFixed(1)} km',
-                            style: const TextStyle(fontSize: 20),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Trocas de ônibus: $transfers',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Toque para ver horários detalhados',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue,
-                      fontStyle: FontStyle.italic,
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Theme.of(context).colorScheme.secondaryContainer,
+                Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => RouteDetailScreen(
+                      segments: segmentedRoute,
+                      origin: _origin!.nome,
+                      destination: _destination!.nome,
+                      totalDistance: totalDistance,
+                      totalTime: totalTime,
                     ),
                   ),
-                ],
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.schedule_rounded,
+                                color: Theme.of(context).colorScheme.secondary,
+                                size: 32,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Tempo Estimado',
+                                style: Theme.of(context).textTheme.labelMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                timeRangeLabel,
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          width: 1,
+                          height: 80,
+                          color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                        ),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.route_rounded,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 32,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Distância',
+                                style: Theme.of(context).textTheme.labelMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${(totalDistance / 1000).toStringAsFixed(1)} km',
+                                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surface.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.swap_horiz_rounded,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Trocas de ônibus: $transfers',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.touch_app_rounded,
+                          size: 16,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Toque para ver horários detalhados',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

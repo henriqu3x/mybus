@@ -104,8 +104,8 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.linha.numeroNome),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        // backgroundColor: Colors.blue[800],
+        // foregroundColor: Colors.white,
         bottom: TabBar(
           labelColor: Colors.white,
           unselectedLabelColor: Colors.grey[400],
@@ -535,20 +535,35 @@ class _LineDetailScreenState extends State<LineDetailScreen>
                           (h) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: h.acessivel == 'sim' ? Colors.blue[100] : Colors.grey[200],
+                              color: h.acessivel == 'sim' 
+                                  ? Theme.of(context).colorScheme.primaryContainer
+                                  : Theme.of(context).colorScheme.surfaceVariant,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.grey[300]!)
+                              border: Border.all(
+                                color: h.acessivel == 'sim'
+                                    ? Theme.of(context).colorScheme.primary.withOpacity(0.3)
+                                    : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
                                   h.horario, 
-                                  style: const TextStyle(fontWeight: FontWeight.bold)
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: h.acessivel == 'sim'
+                                        ? Theme.of(context).colorScheme.onPrimaryContainer
+                                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
                                 ),
                                 if (h.acessivel == 'sim') ...[
                                   const SizedBox(width: 4),
-                                  const Icon(Icons.accessible, size: 16, color: Colors.blue),
+                                  Icon(
+                                    Icons.accessible,
+                                    size: 16,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
                                 ]
                               ],
                             ),

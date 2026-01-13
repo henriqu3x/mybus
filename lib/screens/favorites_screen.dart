@@ -63,8 +63,8 @@ class _FavoritesScreenState extends State<FavoritesScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Favoritos'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        // backgroundColor: Colors.blue[800],
+        // foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.white,
@@ -113,7 +113,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
               ),
             ),
             title: Text(favorito.displayName),
-            subtitle: Text('Adicionado em ${_formatDate(favorito.createdAt)}'),
+            subtitle: Text('Adicionado ${_formatDate(favorito.createdAt)}'),
             trailing: IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
               onPressed: () => _confirmDelete(favorito),
@@ -155,7 +155,7 @@ class _FavoritesScreenState extends State<FavoritesScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 4),
-                Text('Adicionado em ${_formatDate(favorito.createdAt)}'),
+                Text('Adicionado ${_formatDate(favorito.createdAt)}'),
                 const SizedBox(height: 4),
                 Text(
                   _getRoutePreview(favorito.routeData),

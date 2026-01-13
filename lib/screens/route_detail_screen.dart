@@ -104,41 +104,54 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.blue[50],
-              border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+              color: Theme.of(context).colorScheme.primaryContainer,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                ),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.my_location, color: Colors.green),
+                    Icon(
+                      Icons.my_location,
+                      color: Theme.of(context).colorScheme.secondary,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.origin,
-                        style: const TextStyle(
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(left: 12.0, top: 4, bottom: 4),
-                  child: Icon(Icons.more_vert, color: Colors.grey),
+                Padding(
+                  padding: const EdgeInsets.only(left: 12.0, top: 4, bottom: 4),
+                  child: Icon(
+                    Icons.more_vert,
+                    color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.5),
+                  ),
                 ),
                 Row(
                   children: [
-                    const Icon(Icons.location_on, color: Colors.red),
+                    Icon(
+                      Icons.location_on,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         widget.destination,
-                        style: const TextStyle(
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
                         ),
                       ),
                     ),
@@ -209,12 +222,24 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   }) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: Colors.blue),
+        Icon(
+          icon,
+          size: 20,
+          color: Theme.of(context).colorScheme.primary,
+        ),
         const SizedBox(height: 4),
-        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
+          ),
+        ),
         Text(
           value,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
         ),
       ],
     );
@@ -551,9 +576,13 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                 final interval = TimeUtils.getTimeInterval(timeStr, 0);
                 
                 return Chip(
-                  label: Text(interval, style: const TextStyle(fontSize: 11)),
-                  backgroundColor: Colors.grey[200],
+                  label: Text(
+                    interval,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                  backgroundColor: Theme.of(context).colorScheme.surfaceVariant,
                   padding: const EdgeInsets.symmetric(horizontal: 4),
+                  side: BorderSide.none,
                 );
               }).toList(),
               ),

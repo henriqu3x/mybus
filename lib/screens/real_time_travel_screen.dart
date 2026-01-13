@@ -296,10 +296,10 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(bodyText),
+          SnackBar(
+            content: Text(bodyText), // O estilo virá automaticamente do AppTheme!
+            backgroundColor: Colors.blueAccent, // Se quiser mudar apenas esta snackbar específica
           behavior: SnackBarBehavior.floating,
-          backgroundColor: Colors.blueAccent,
         ),
       );
     }

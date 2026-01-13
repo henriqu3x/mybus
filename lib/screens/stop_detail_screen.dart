@@ -33,8 +33,8 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Parada ${widget.stop.id}'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        // backgroundColor: Colors.blue[800],
+        // foregroundColor: Colors.white,
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

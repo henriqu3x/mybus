@@ -614,8 +614,8 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Visualização da Rota'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        // backgroundColor: Colors.blue[800],
+        // foregroundColor: Colors.white,
       ),
       body: Stack(
         children: [

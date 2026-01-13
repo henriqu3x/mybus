@@ -70,9 +70,13 @@ class _LinesScreenState extends State<LinesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Linhas de Ônibus'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.list_rounded, size: 28),
+            const SizedBox(width: 12),
+            const Text('Linhas de Ônibus'),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -85,18 +89,21 @@ class _LinesScreenState extends State<LinesScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.star, color: Colors.amber),
+                      Icon(
+                        Icons.star_rounded,
+                        color: Theme.of(context).colorScheme.tertiary,
+                        size: 24,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         'Favoritos',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.bold),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   SizedBox(
-                    height: 95,
+                    height: 110,
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       itemCount: _favoritesLines.length,
@@ -118,22 +125,23 @@ class _LinesScreenState extends State<LinesScreen> {
               controller: _searchController,
               decoration: InputDecoration(
                 labelText: 'Buscar Linha',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () {
-                    _searchController.clear();
-                    Provider.of<BusProvider>(
-                      context,
-                      listen: false,
-                    ).filterLinhas('');
-                  },
-                ),
+                hintText: 'Digite o número ou nome da linha',
+                prefixIcon: const Icon(Icons.search_rounded),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear_rounded),
+                        onPressed: () {
+                          _searchController.clear();
+                          Provider.of<BusProvider>(
+                            context,
+                            listen: false,
+                          ).filterLinhas('');
+                        },
+                      )
+                    : null,
               ),
               onChanged: (value) {
+                setState(() {}); // Rebuild to show/hide clear button
                 Provider.of<BusProvider>(
                   context,
                   listen: false,
@@ -175,6 +183,7 @@ class _LinesScreenState extends State<LinesScreen> {
 
                 return ListView.builder(
                   itemCount: sortedLinhas.length,
+                  padding: const EdgeInsets.only(bottom: 16),
                   itemBuilder: (context, index) {
                     final linha = sortedLinhas[index];
                     final isFavorite = favoriteIds.contains(
@@ -184,25 +193,59 @@ class _LinesScreenState extends State<LinesScreen> {
                     return Card(
                       margin: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 4,
+                        vertical: 6,
+                      ),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blue,
-                          child: Text(
-                            linha.numero.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        leading: Container(
+                          width: 56,
+                          height: 56,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Theme.of(context).colorScheme.primary,
+                                Theme.of(context).colorScheme.primaryContainer,
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              linha.numero.toString(),
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                        title: Text(linha.nome),
-                        subtitle: Text(linha.tipoLinha),
+                        title: Text(
+                          linha.nome,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            linha.tipoLinha,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ),
                         trailing: IconButton(
                           icon: Icon(
-                            isFavorite ? Icons.star : Icons.star_border,
-                            color: isFavorite ? Colors.amber : Colors.grey,
+                            isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                            color: isFavorite 
+                                ? Theme.of(context).colorScheme.tertiary
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                            size: 28,
                           ),
                           onPressed: () async {
                             if (isFavorite) {
@@ -246,6 +289,10 @@ class _LinesScreenState extends State<LinesScreen> {
   Widget _buildFavoriteCard(Favorito favorito) {
     return Card(
       margin: const EdgeInsets.only(right: 12),
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: InkWell(
         onTap: () async {
           final provider = Provider.of<BusProvider>(context, listen: false);
@@ -271,40 +318,61 @@ class _LinesScreenState extends State<LinesScreen> {
             );
           }
         },
+        borderRadius: BorderRadius.circular(16),
         child: Container(
-          width: 120,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          width: 130,
+          padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    backgroundColor: Colors.blue,
-                    radius: 16,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Theme.of(context).colorScheme.primary,
+                          Theme.of(context).colorScheme.primaryContainer,
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Text(
                       favorito.entityId,
-                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 16),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () async {
+                  InkWell(
+                    onTap: () async {
                       await FavoritesService().removeFavorite(
                         favorito.favoritoId,
                       );
                       _loadFavorites();
                     },
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 8),
               Text(
                 favorito.displayName,
-                style: const TextStyle(fontSize: 11),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,

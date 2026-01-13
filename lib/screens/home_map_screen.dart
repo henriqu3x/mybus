@@ -309,12 +309,16 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('No Ponto'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        title: Row(
+          children: [
+            const Icon(Icons.directions_bus_rounded, size: 28),
+            const SizedBox(width: 12),
+            const Text('No Ponto'),
+          ],
+        ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.star),
+            icon: const Icon(Icons.star_rounded),
             tooltip: 'Favoritos',
             onPressed: () {
               Navigator.push(
@@ -325,8 +329,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.location_on_outlined),
+            icon: const Icon(Icons.location_on_rounded),
             tooltip: 'Viagem em Tempo Real',
             onPressed: () {
                Navigator.push(
@@ -337,8 +342,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               ).then((_) => _checkActiveTrip(autoNav: false));
             },
           ),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.list),
+            icon: const Icon(Icons.list_rounded),
             tooltip: 'Linhas',
             onPressed: () {
               Navigator.push(
@@ -347,8 +353,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.map),
+            icon: const Icon(Icons.map_rounded),
             tooltip: 'Planejador',
             onPressed: () {
               Navigator.push(
@@ -359,8 +366,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
+          const SizedBox(width: 4),
           IconButton(
-            icon: const Icon(Icons.notifications),
+            icon: const Icon(Icons.notifications_rounded),
             tooltip: 'Alertas',
             onPressed: () {
               Navigator.push(
@@ -371,6 +379,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Stack(
@@ -479,42 +488,81 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
       maxChildSize: 0.9,
       builder: (context, scrollController) {
         return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, -2),
+              ),
+            ],
           ),
           child: Column(
             children: [
               Container(
-                margin: const EdgeInsets.only(top: 8),
-                width: 40,
+                margin: const EdgeInsets.only(top: 12),
+                width: 48,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.grey[300],
+                  color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Parada ${widget.stop.id}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primaryContainer,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.bus_alert_rounded,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Parada ${widget.stop.id}',
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                              if (widget.stop.name != 'Parada ${widget.stop.id}')
+                                Text(
+                                  widget.stop.name,
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                    if (widget.stop.name != 'Parada ${widget.stop.id}')
-                      Text(
-                        widget.stop.name,
-                        style: TextStyle(color: Colors.grey[600]),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.secondaryContainer,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '${widget.stop.lines.length} linha(s)',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                      child: Text(
+                        '${widget.stop.lines.length} linha(s) disponível(is)',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                          color: Theme.of(context).colorScheme.onSecondaryContainer,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -533,37 +581,70 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
 
                           return Card(
                             margin: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
                             ),
                             child: ExpansionTile(
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.blue,
-                                child: Text(
-                                  lineCode,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
+                              leading: Container(
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    lineCode,
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ),
                               title: Text(
                                 'Linha $lineCode',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                                style: Theme.of(context).textTheme.titleMedium,
                               ),
                               subtitle: schedules.isEmpty
-                                  ? const Text(
-                                      'Sem mais saídas hoje',
-                                      style: TextStyle(color: Colors.orange),
+                                  ? Row(
+                                      children: [
+                                        Icon(
+                                          Icons.info_outline_rounded,
+                                          size: 16,
+                                          color: Theme.of(context).colorScheme.tertiary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Sem mais saídas hoje',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                            color: Theme.of(context).colorScheme.tertiary,
+                                          ),
+                                        ),
+                                      ],
                                     )
-                                  : Text(
-                                      'Próximas: ${schedules.take(3).join(', ')}',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                      ),
+                                  : Row(
+                                      children: [
+                                        Icon(
+                                          Icons.schedule_rounded,
+                                          size: 16,
+                                          color: Theme.of(context).colorScheme.secondary,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            'Próximas: ${schedules.take(3).join(', ')}',
+                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              color: Theme.of(context).colorScheme.secondary,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                               children: [
                                 if (schedules.isNotEmpty)
@@ -573,13 +654,11 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
+                                        Text(
                                           'Próximos horários:',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                          style: Theme.of(context).textTheme.titleSmall,
                                         ),
-                                        const SizedBox(height: 8),
+                                        const SizedBox(height: 12),
                                         Wrap(
                                           spacing: 8,
                                           runSpacing: 8,
@@ -587,9 +666,13 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                               .take(10)
                                               .map(
                                                 (time) => Chip(
-                                                  label: Text(time),
+                                                  label: Text(
+                                                    time,
+                                                    style: Theme.of(context).textTheme.labelMedium,
+                                                  ),
                                                   backgroundColor:
-                                                      Colors.blue[100],
+                                                      Theme.of(context).colorScheme.primaryContainer,
+                                                  side: BorderSide.none,
                                                 ),
                                               )
                                               .toList(),

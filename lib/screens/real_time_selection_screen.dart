@@ -140,8 +140,8 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Nova Viagem'),
-        backgroundColor: Colors.blue[800],
-        foregroundColor: Colors.white,
+        // backgroundColor: Colors.blue[800],
+        // foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
@@ -250,16 +250,39 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
                     left: 20,
                     right: 20,
                     child: Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                        color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.95),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            blurRadius: 8,
+                            color: Colors.black.withOpacity(0.2),
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: const Text(
-                        'Toque na parada onde deseja descer.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontWeight: FontWeight.bold),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.touch_app_rounded,
+                            color: Theme.of(context).colorScheme.onPrimaryContainer,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              'Toque na parada onde deseja descer',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
