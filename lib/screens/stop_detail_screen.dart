@@ -52,12 +52,13 @@ class _StopDetailScreenState extends State<StopDetailScreen> {
                   style: const TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
+                    color: Colors.black87, // Fixed contrast
                   ),
                 ),
                 if (widget.stop.name != 'Parada ${widget.stop.id}')
                   Text(
                     widget.stop.name,
-                    style: TextStyle(color: Colors.grey[700], fontSize: 16),
+                    style: TextStyle(color: Colors.grey[800], fontSize: 16), // Darker grey
                   ),
                 const SizedBox(height: 8),
                 Text(

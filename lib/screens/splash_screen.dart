@@ -75,7 +75,7 @@ class _SplashScreenState extends State<SplashScreen>
             colors: [
               AppTheme.primary,
               AppTheme.primaryDark,
-              AppTheme.secondary,
+              AppTheme.backgroundDark,
             ],
           ),
         ),

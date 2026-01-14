@@ -372,8 +372,8 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Theme.of(context).colorScheme.secondaryContainer,
-                Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                Theme.of(context).colorScheme.primaryContainer,
+                Theme.of(context).colorScheme.primary.withOpacity(0.1),
               ],
             ),
             borderRadius: BorderRadius.circular(16),

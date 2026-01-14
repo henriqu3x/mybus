@@ -35,19 +35,53 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   final Map<String, Future<List<HorarioPosto>>> _scheduleCache = {};
   final Map<String, Future<ItinerarioCompleto>> _itineraryCache = {};
 
-  
+  bool _isFavorite = false;
 
   @override
   void initState() {
     super.initState();
+    _checkFavorite();
     _preloadData();
+  }
+
+  void _checkFavorite() async {
+    final favorites = await FavoritesService().getFavoritesByType(FavoritoType.ROUTE);
+    // Assuming entityId is composed of "origin_destination" or checking displayName/routeData
+    // For simplicity, let's check if we find a favorite with matching display name or entityId
+    final isFav = favorites.any((f) => f.entityId == '${widget.origin}_${widget.destination}');
+    if (mounted) setState(() => _isFavorite = isFav);
+  }
+
+  void _saveRouteAsFavorite() async {
+     final routeData = {
+      'segments': widget.segments.map((s) => s.toJson()).toList(),
+      'origin': widget.origin,
+      'destination': widget.destination,
+      'totalDistance': widget.totalDistance,
+      'totalTime': widget.totalTime,
+    };
+
+    final favorito = Favorito(
+      tipo: FavoritoType.ROUTE,
+      entityId: '${widget.origin}_${widget.destination}',
+      displayName: '${widget.origin} -> ${widget.destination}',
+      routeData: jsonEncode(routeData),
+    );
+
+    await FavoritesService().addFavorite(favorito);
+    if (mounted) setState(() => _isFavorite = true);
+    
+    if (mounted) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Rota salva nos favoritos!')),
+      );
+    }
   }
 
   void _preloadData() {
     final provider = Provider.of<BusProvider>(context, listen: false);
     final today = DateFormat('yyyyMMdd').format(DateTime.now());
 
-    // Preload schedules and itineraries for all segments
     for (var segment in widget.segments) {
       final lineNumber = _extractLineNumber(segment.lineName);
       if (lineNumber != null) {
@@ -61,7 +95,6 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
   }
 
   int? _extractLineNumber(String lineName) {
-    // Extract number from format "051-Grande Circular I"
     final match = RegExp(r'^(\d+)').firstMatch(lineName);
     if (match != null) {
       return int.tryParse(match.group(1)!);
@@ -71,14 +104,11 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Build display segments by merging consecutive segments of the same line
-    // base (ignoring _IDA/_VOLTA). This prevents duplicate cards when the bus
-    // only changes direction but remains the same physical service.
     final displaySegments = _computeDisplaySegmentsForDisplay(widget.segments);
-    // Calculate transfers ignoring same-line direction changes (IDA/VOLTA)
+    
     int transfers = 0;
     for (int i = 0; i < widget.segments.length - 1; i++) {
-      final current = widget.segments[i].lineName
+       final current = widget.segments[i].lineName
           .replaceAll('_IDA', '')
           .replaceAll('_VOLTA', '');
       final next = widget.segments[i + 1].lineName
@@ -88,15 +118,17 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         transfers++;
       }
     }
-
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Detalhes da Rota')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _saveRouteAsFavorite,
-        icon: const Icon(Icons.star),
-        label: const Text('Salvar Rota'),
-        backgroundColor: Colors.amber,
-      ),
+      floatingActionButton: _isFavorite 
+          ? null 
+          : FloatingActionButton.extended(
+              onPressed: _saveRouteAsFavorite,
+              icon: const Icon(Icons.star),
+              label: const Text('Salvar Rota'),
+              backgroundColor: Colors.amber,
+            ),
       body: Column(
         children: [
           // Header with route summary
@@ -104,7 +136,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primaryContainer,
+              color: Theme.of(context).colorScheme.primary,
               border: Border(
                 bottom: BorderSide(
                   color: Theme.of(context).colorScheme.outline.withOpacity(0.3),
@@ -118,7 +150,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   children: [
                     Icon(
                       Icons.my_location,
-                      color: Theme.of(context).colorScheme.secondary,
+                      color: Colors.white70, // White secondary
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -126,7 +158,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                         widget.origin,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          color: Colors.white, // White
                         ),
                       ),
                     ),
@@ -136,14 +168,14 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   padding: const EdgeInsets.only(left: 12.0, top: 4, bottom: 4),
                   child: Icon(
                     Icons.more_vert,
-                    color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.5),
+                    color: Colors.white54,
                   ),
                 ),
                 Row(
                   children: [
                     Icon(
                       Icons.location_on,
-                      color: Theme.of(context).colorScheme.error,
+                      color: Colors.redAccent, // Keep red but ensure visibility
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -151,7 +183,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                         widget.destination,
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                          color: Colors.white, // White
                         ),
                       ),
                     ),
@@ -225,20 +257,20 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
         Icon(
           icon,
           size: 20,
-          color: Theme.of(context).colorScheme.primary,
+          color: Colors.white, // White
         ),
         const SizedBox(height: 4),
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: Theme.of(context).colorScheme.onPrimaryContainer.withOpacity(0.7),
+            color: Colors.white70, // White70
           ),
         ),
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.bold,
-            color: Theme.of(context).colorScheme.onPrimaryContainer,
+            color: Colors.white, // White
           ),
         ),
       ],
@@ -534,14 +566,14 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
                   const SizedBox(width: 8),
                   Text(
                     'Próximo ônibus em ',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                    style: TextStyle(fontSize: 14, color: Colors.white70), // White70
                   ),
                   Text(
                     intervaloFormatado, // Exibirá "14:08 - 14:12"
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: timeColor,
+                      color: Colors.white, // White
                     ),
                   ),
                   const Spacer(),
@@ -847,58 +879,7 @@ class _RouteDetailScreenState extends State<RouteDetailScreen> {
     return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _saveRouteAsFavorite() async {
-    try {
-      // Serialize route data to JSON
-      final routeData = {
-        'origin': widget.origin,
-        'destination': widget.destination,
-        'totalDistance': widget.totalDistance,
-        'totalTime': widget.totalTime,
-        'segments': widget.segments
-            .map(
-              (s) => {
-                'type': s.type,
-                'lineName': s.lineName,
-                'startStreetName': s.startStreetName,
-                'endStreetName': s.endStreetName,
-                'distance': s.distance,
-              },
-            )
-            .toList(),
-      };
 
-      final routeDataJson = jsonEncode(routeData);
-
-      // Create favorite
-      final favorito = Favorito(
-        tipo: FavoritoType.ROUTE,
-        entityId: '${widget.origin}_${widget.destination}',
-        displayName: '${widget.origin} → ${widget.destination}',
-        routeData: routeDataJson,
-      );
-
-      await FavoritesService().addFavorite(favorito);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Rota salva nos favoritos!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erro ao salvar rota: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    }
-  }
 }
 
 class _ItineraryMatch {

@@ -97,9 +97,74 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     }
   }
 
-  void _navigateToTrip() {
+
+
+  Future<void> _loadData() async {
+    await _startLocationStream();
+
+    _stops = await _kmlService.loadStopsMetadata();
+    _loadHtmlContent();
+  }
+
+  Future<void> _startLocationStream() async {
+    // 1. Check Service
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      debugPrint("Location services disabled");
+      return;
+    }
+
+    // 2. Check/Request Permission
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        debugPrint("Location permission denied");
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      debugPrint("Location permission permanently denied");
+      return;
+    }
+
+    // 3. Get Initial Position
+    try {
+      _userPosition = await Geolocator.getCurrentPosition();
+    } catch (e) {
+      debugPrint("Error getting current position: $e");
+    }
+
+    // 4. Start Stream
+    _stopLocationStream(); // Ensure clean slate
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 5,
+      ),
+    ).listen((Position position) {
+      if (mounted) {
+        _userPosition = position; // Update local state
+        _updateUserMarkerInJS(position);
+      }
+    }, onError: (e) {
+      debugPrint("Location stream error: $e");
+    });
+  }
+
+  void _stopLocationStream() {
+    _positionStream?.cancel();
+    _positionStream = null;
+  }
+
+  void _navigateToTrip() async {
     if (_currentTripData == null) return;
-    Navigator.push(
+    
+    // Stop Home stream to avoid conflict with RealTimeTravelScreen's foreground service
+    _stopLocationStream();
+
+    await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => RealTimeTravelScreen(
@@ -107,44 +172,11 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           destinationStop: _currentTripData!['destination'],
         ),
       ),
-    ).then((_) => _checkActiveTrip(autoNav: false));
-  }
-
-  Future<void> _loadData() async {
-    // 1. Get User Location (Permission check)
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        // Handle service disabled
-      }
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission != LocationPermission.deniedForever &&
-        permission != LocationPermission.denied) {
-      
-      // 1. Pega a posição inicial para o mapa começar no lugar certo
-      _userPosition = await Geolocator.getCurrentPosition();
-      await _positionStream?.cancel();
-
-      // 2. Inicia o Stream para atualizar o ícone quando o usuário se mexer
-      _positionStream = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        ),
-      ).listen((Position position) {
-        if (mounted) { // Verifica se a tela ainda existe antes de atualizar
-          _updateUserMarkerInJS(position);
-        }
-      });
-      }
-    } catch (e) {
-      debugPrint("Erro ao carregar dados de localização: $e");
-      // Opcional: Mostrar um SnackBar avisando que o mapa iniciará no centro padrão
-    }
-
-    _stops = await _kmlService.loadStopsMetadata();
-    _loadHtmlContent();
+    );
+    
+    // Restart Home stream when returning
+    _checkActiveTrip(autoNav: false);
+    _startLocationStream();
   }
 
   void _updateUserMarkerInJS(Position position) {
@@ -334,12 +366,16 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
             icon: const Icon(Icons.location_on_rounded),
             tooltip: 'Viagem em Tempo Real',
             onPressed: () {
+               _stopLocationStream();
                Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const RealTimeSelectionScreen(),
                 ),
-              ).then((_) => _checkActiveTrip(autoNav: false));
+              ).then((_) {
+                _checkActiveTrip(autoNav: false);
+                _startLocationStream();
+              });
             },
           ),
           const SizedBox(width: 4),

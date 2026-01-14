@@ -535,11 +535,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
                                       : "Faltam ${_destinationIndex - _lastStopIndex} paradas",
                                   style: TextStyle(
                                     fontSize: 18,
-                                    color:
-                                        (_destinationIndex - _lastStopIndex) <=
-                                            1
-                                        ? Colors.red
-                                        : Colors.black,
+                                    color: Colors.white,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
