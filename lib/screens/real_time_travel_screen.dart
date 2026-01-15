@@ -57,27 +57,38 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     LocationPermission permission;
 
     try {
-      // Check if location services are enabled
+      // 1. Check if location services are enabled
       serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         debugPrint('Location services are disabled.');
+        if (mounted) {
+          _showLocationServiceDialog();
+        }
         return;
       }
 
+      // 2. Check Permissions
       permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           debugPrint('Location permissions are denied.');
+          if (mounted) {
+            _showPermissionDeniedSnackBar();
+          }
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
         debugPrint('Location permissions are permanently denied.');
+        if (mounted) {
+          _showPermissionPermanentlyDeniedDialog();
+        }
         return;
       }
 
+      // 3. Configure Location Settings
       late LocationSettings locationSettings;
 
       if (defaultTargetPlatform == TargetPlatform.android) {
@@ -101,6 +112,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
         );
       }
 
+      // 4. Start Stream
       _positionStream =
           Geolocator.getPositionStream(
             locationSettings: locationSettings,
@@ -122,11 +134,75 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
             },
             onError: (e) {
               debugPrint('Error in position stream: $e');
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Erro ao obter localização: $e')),
+                );
+              }
             },
           );
     } catch (e) {
       debugPrint('Error starting tracking: $e');
     }
+  }
+
+  void _showLocationServiceDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Localização Desativada'),
+        content: const Text('Para acompanhar sua viagem, ative o GPS do seu dispositivo.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Geolocator.openLocationSettings();
+              // Opcional: tentar iniciar o tracking novamente após voltar?
+              // Geralmente o usuário tem que reabrir a tela ou clicar em um botão "Tentar Novamente" se fizermos um.
+            },
+            child: const Text('Abrir Configurações'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPermissionDeniedSnackBar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Permissão de localização necessária para o rastreamento.'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
+  void _showPermissionPermanentlyDeniedDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Permissão Necessária'),
+        content: const Text(
+            'A permissão de localização foi negada permanentemente. '
+            'Vá nas configurações do app e permita o acesso à localização.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Geolocator.openAppSettings();
+            },
+            child: const Text('Abrir Configurações'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadRouteAndStops() async {

@@ -42,6 +42,15 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     _initController();
     _checkActiveTrip(autoNav: false);
     _loadData();
+
+    // Safety timeout: Force loading to finish after 8 seconds
+    // This prevents the screen from being stuck cleanly if WebView callbacks fail
+    Future.delayed(const Duration(seconds: 8), () {
+      if (mounted && _isLoading) {
+        debugPrint("HomeMapScreen: Loading timed out, forcing display.");
+        setState(() => _isLoading = false);
+      }
+    });
   }
 
   void _initController() {
@@ -100,7 +109,8 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
 
   Future<void> _loadData() async {
-    await _startLocationStream();
+    // Start location stream in background (fire-and-forget) to avoid blocking map load
+    _startLocationStream();
 
     _stops = await _kmlService.loadStopsMetadata();
     _loadHtmlContent();
