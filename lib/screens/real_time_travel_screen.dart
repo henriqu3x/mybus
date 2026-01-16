@@ -94,7 +94,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       if (defaultTargetPlatform == TargetPlatform.android) {
         locationSettings = AndroidSettings(
           accuracy: LocationAccuracy.high,
-          distanceFilter: 10,
+          distanceFilter: 5,
           foregroundNotificationConfig: const ForegroundNotificationConfig(
             notificationTitle: "Monitorando sua viagem",
             notificationText: "O No Ponto avisará quando chegar na sua parada.",
@@ -108,8 +108,29 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       } else {
         locationSettings = const LocationSettings(
           accuracy: LocationAccuracy.high,
-          distanceFilter: 10,
+          distanceFilter: 5,
         );
+      }
+
+      Position? lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null && mounted) {
+        setState(() => _currentPosition = LatLng(lastKnown.latitude, lastKnown.longitude));
+      }
+
+      try {
+        // Tenta a posição atual com um limite de 10 segundos
+        Position initialPosition = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 10),
+        );
+        if (mounted) {
+          setState(() => _currentPosition = LatLng(initialPosition.latitude, initialPosition.longitude));
+          _mapController.move(_currentPosition!, 15);
+        }
+      } catch (e) {
+        // Se der timeout ou erro, não tem problema! 
+        // O Stream abaixo vai assumir assim que o sinal aparecer.
+        debugPrint('Aguardando sinal estável de GPS...');
       }
 
       // 4. Start Stream
@@ -277,8 +298,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
           TextButton(
             onPressed: () async {
               Navigator.pop(ctx); // Close dialog
-              await PersistenceService().clearActiveTrip();
-              if (mounted) Navigator.pop(context); // Close screen
+              _stopTripAndLeave();
             },
             child: const Text('Sim, Cancelar'),
           ),
@@ -428,6 +448,20 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     // PersistenceService().clearActiveTrip();
     super.dispose();
   }
+
+  Future<void> _stopTripAndLeave() async {
+  // 1. Cancela a escuta do GPS
+  await _positionStream?.cancel();
+  _positionStream = null;
+
+  // 2. Limpa dados salvos (se for uma regra de negócio sua)
+  await PersistenceService().clearActiveTrip();
+
+  // 3. Sai da tela
+  if (mounted) {
+    Navigator.of(context).pop();
+  }
+}
 
   @override
   Widget build(BuildContext context) {
