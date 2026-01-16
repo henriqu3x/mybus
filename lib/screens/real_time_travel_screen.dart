@@ -24,7 +24,6 @@ class RealTimeTravelScreen extends StatefulWidget {
 
   @override
   State<RealTimeTravelScreen> createState() => _RealTimeTravelScreenState();
-
 }
 
 class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
@@ -53,117 +52,81 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   }
 
   Future<void> _startTracking() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
     try {
-      // 1. Check if location services are enabled
-      serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        debugPrint('Location services are disabled.');
-        if (mounted) {
-          _showLocationServiceDialog();
-        }
+      // 1. Verificação básica de serviço (Ignora erro se falhar no Web/F12)
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled()
+          .catchError((_) => true);
+      if (!serviceEnabled && !kIsWeb) {
+        if (mounted) _showLocationServiceDialog();
         return;
       }
 
-      // 2. Check Permissions
-      permission = await Geolocator.checkPermission();
+      // 2. Permissões
+      LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          debugPrint('Location permissions are denied.');
-          if (mounted) {
-            _showPermissionDeniedSnackBar();
-          }
-          return;
-        }
+        if (permission == LocationPermission.denied) return;
       }
 
-      if (permission == LocationPermission.deniedForever) {
-        debugPrint('Location permissions are permanently denied.');
-        if (mounted) {
-          _showPermissionPermanentlyDeniedDialog();
-        }
-        return;
-      }
+      // 3. Configurações Híbridas (Android + Web/F12)
+      final locationSettings = kIsWeb
+          ? const LocationSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 0,
+            )
+          : AndroidSettings(
+              accuracy: LocationAccuracy.high,
+              distanceFilter: 0, // Mude para 0 para testar, depois volte para 5
+              foregroundNotificationConfig: const ForegroundNotificationConfig(
+                notificationTitle: "Monitorando sua viagem",
+                notificationText:
+                    "O No Ponto avisará quando chegar na sua parada.",
+                enableWakeLock: true,
+              ),
+            );
 
-      // 3. Configure Location Settings
-      late LocationSettings locationSettings;
+      // --- O PULO DO GATO ESTÁ AQUI ---
 
-      if (defaultTargetPlatform == TargetPlatform.android) {
-        locationSettings = AndroidSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-          foregroundNotificationConfig: const ForegroundNotificationConfig(
-            notificationTitle: "Monitorando sua viagem",
-            notificationText: "O No Ponto avisará quando chegar na sua parada.",
-            notificationIcon: AndroidResource(
-              name: 'notification_icon',
-              defType: 'drawable',
-            ),
-            enableWakeLock: true,
-          ),
-        );
-      } else {
-        locationSettings = const LocationSettings(
-          accuracy: LocationAccuracy.high,
-          distanceFilter: 5,
-        );
-      }
-
-      Position? lastKnown = await Geolocator.getLastKnownPosition();
-      if (lastKnown != null && mounted) {
-        setState(() => _currentPosition = LatLng(lastKnown.latitude, lastKnown.longitude));
-      }
-
-      try {
-        // Tenta a posição atual com um limite de 10 segundos
-        Position initialPosition = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 10),
-        );
-        if (mounted) {
-          setState(() => _currentPosition = LatLng(initialPosition.latitude, initialPosition.longitude));
-          _mapController.move(_currentPosition!, 15);
-        }
-      } catch (e) {
-        // Se der timeout ou erro, não tem problema! 
-        // O Stream abaixo vai assumir assim que o sinal aparecer.
-        debugPrint('Aguardando sinal estável de GPS...');
-      }
-
-      // 4. Start Stream
+      // Primeiro: Iniciamos o Stream (Ouvinte).
+      // Assim, qualquer sinal que vier (do F12 ou do Android) já será capturado.
       _positionStream =
           Geolocator.getPositionStream(
             locationSettings: locationSettings,
-          ).listen(
-            (Position position) {
-              if (mounted) {
-                setState(() {
-                  _currentPosition = LatLng(position.latitude, position.longitude);
-                });
-
-                // Move a câmera para acompanhar o usuário
-                _mapController.move(_currentPosition!, _mapController.camera.zoom);
-
-                // ESTA FUNÇÃO É A QUE RESOLVE TUDO:
-                if (_isMapReady && _routePoints.isNotEmpty) {
-                  _checkProximity(); // Ela atualiza o _lastStopIndex e avisa as paradas faltantes
-                }
-              }
-            },
-            onError: (e) {
-              debugPrint('Error in position stream: $e');
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Erro ao obter localização: $e')),
+          ).listen((Position position) {
+            if (mounted) {
+              debugPrint(
+                "SINAL RECEBIDO: ${position.latitude}, ${position.longitude}",
+              );
+              setState(() {
+                _currentPosition = LatLng(
+                  position.latitude,
+                  position.longitude,
                 );
+                _isLoading = false; // O sinal chegou, para o loading!
+              });
+
+              if (_isMapReady) {
+                _mapController.move(
+                  _currentPosition!,
+                  _mapController.camera.zoom,
+                );
+                if (_routePoints.isNotEmpty) _checkProximity();
               }
-            },
-          );
+            }
+          }, onError: (e) => debugPrint('Erro no Stream: $e'));
+
+      // Segundo: Tentamos pegar a última posição conhecida apenas para o mapa não abrir no meio do mar
+      Position? lastKnown = await Geolocator.getLastKnownPosition();
+      if (lastKnown != null && mounted && _currentPosition == null) {
+        setState(
+          () => _currentPosition = LatLng(
+            lastKnown.latitude,
+            lastKnown.longitude,
+          ),
+        );
+      }
     } catch (e) {
-      debugPrint('Error starting tracking: $e');
+      debugPrint('Erro fatal no tracking: $e');
     }
   }
 
@@ -172,7 +135,9 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Localização Desativada'),
-        content: const Text('Para acompanhar sua viagem, ative o GPS do seu dispositivo.'),
+        content: const Text(
+          'Para acompanhar sua viagem, ative o GPS do seu dispositivo.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -195,7 +160,9 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   void _showPermissionDeniedSnackBar() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Permissão de localização necessária para o rastreamento.'),
+        content: Text(
+          'Permissão de localização necessária para o rastreamento.',
+        ),
         backgroundColor: Colors.orange,
       ),
     );
@@ -207,8 +174,9 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Permissão Necessária'),
         content: const Text(
-            'A permissão de localização foi negada permanentemente. '
-            'Vá nas configurações do app e permita o acesso à localização.'),
+          'A permissão de localização foi negada permanentemente. '
+          'Vá nas configurações do app e permita o acesso à localização.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -392,9 +360,10 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(bodyText), // O estilo virá automaticamente do AppTheme!
-            backgroundColor: Colors.blueAccent, // Se quiser mudar apenas esta snackbar específica
+        SnackBar(
+          content: Text(bodyText), // O estilo virá automaticamente do AppTheme!
+          backgroundColor: Colors
+              .blueAccent, // Se quiser mudar apenas esta snackbar específica
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -450,18 +419,18 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   }
 
   Future<void> _stopTripAndLeave() async {
-  // 1. Cancela a escuta do GPS
-  await _positionStream?.cancel();
-  _positionStream = null;
+    // 1. Cancela a escuta do GPS
+    await _positionStream?.cancel();
+    _positionStream = null;
 
-  // 2. Limpa dados salvos (se for uma regra de negócio sua)
-  await PersistenceService().clearActiveTrip();
+    // 2. Limpa dados salvos (se for uma regra de negócio sua)
+    await PersistenceService().clearActiveTrip();
 
-  // 3. Sai da tela
-  if (mounted) {
-    Navigator.of(context).pop();
+    // 3. Sai da tela
+    if (mounted) {
+      Navigator.of(context).pop();
+    }
   }
-}
 
   @override
   Widget build(BuildContext context) {
@@ -658,5 +627,4 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
             ),
     );
   }
-
 }
