@@ -352,10 +352,16 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.directions_bus_rounded, size: 28),
             const SizedBox(width: 12),
-            const Text('No Ponto'),
+            Flexible(
+              child: const Text(
+                'No Ponto',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         actions: [
@@ -371,13 +377,12 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
-          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.location_on_rounded),
             tooltip: 'Viagem em Tempo Real',
             onPressed: () {
-               _stopLocationStream();
-               Navigator.push(
+              _stopLocationStream();
+              Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const RealTimeSelectionScreen(),
@@ -388,18 +393,6 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               });
             },
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.list_rounded),
-            tooltip: 'Linhas',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LinesScreen()),
-              );
-            },
-          ),
-          const SizedBox(width: 4),
           IconButton(
             icon: const Icon(Icons.map_rounded),
             tooltip: 'Planejador',
@@ -412,18 +405,45 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.notifications_rounded),
-            tooltip: 'Alertas',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const AlertSetupScreen(),
-                ),
-              );
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'lines') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LinesScreen()),
+                );
+              } else if (value == 'alerts') {
+                print("Clicou em Alertas!"); // Adicione isso para testar
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AlertSetupScreen(),
+                  ),
+                );
+              }
             },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'lines',
+                child: Row(
+                  children: [
+                    Icon(Icons.list_rounded),
+                    SizedBox(width: 12),
+                    Text('Linhas'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'alerts',
+                child: Row(
+                  children: [
+                    Icon(Icons.notifications_rounded),
+                    SizedBox(width: 12),
+                    Text('Alertas'),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 8),
         ],
