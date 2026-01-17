@@ -106,8 +106,6 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     }
   }
 
-
-
   Future<void> _loadData() async {
     // Start location stream in background (fire-and-forget) to avoid blocking map load
     _startLocationStream();
@@ -148,19 +146,23 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
     // 4. Start Stream
     _stopLocationStream(); // Ensure clean slate
-    _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 5,
-      ),
-    ).listen((Position position) {
-      if (mounted) {
-        _userPosition = position; // Update local state
-        _updateUserMarkerInJS(position);
-      }
-    }, onError: (e) {
-      debugPrint("Location stream error: $e");
-    });
+    _positionStream =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 5,
+          ),
+        ).listen(
+          (Position position) {
+            if (mounted) {
+              _userPosition = position; // Update local state
+              _updateUserMarkerInJS(position);
+            }
+          },
+          onError: (e) {
+            debugPrint("Location stream error: $e");
+          },
+        );
   }
 
   void _stopLocationStream() {
@@ -170,7 +172,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
   void _navigateToTrip() async {
     if (_currentTripData == null) return;
-    
+
     // Stop Home stream to avoid conflict with RealTimeTravelScreen's foreground service
     _stopLocationStream();
 
@@ -183,22 +185,31 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
         ),
       ),
     );
-    
+
     // Restart Home stream when returning
     _checkActiveTrip(autoNav: false);
     _startLocationStream();
   }
 
   void _updateUserMarkerInJS(Position position) {
-    final jsCode = '''
-      if (window.userFeature) {
-        const newCoord = ol.proj.fromLonLat([${position.longitude}, ${position.latitude}]);
-        window.userFeature.getGeometry().setCoordinates(newCoord);
-        console.log("Marcador movido para: " + [${position.longitude}, ${position.latitude}]);
-      } else {
-        console.error("userFeature não encontrada!");
-      }
-    ''';
+    final jsCode =
+        '''
+    if (window.userFeature) {
+      const newCoord = ol.proj.fromLonLat([${position.longitude}, ${position.latitude}]);
+      
+      // 1. Move o marcador (o que você já fazia)
+      window.userFeature.getGeometry().setCoordinates(newCoord);
+      
+      // 2. CENTRALIZA A TELA (A parte que faltava)
+      // O 'animate' deixa o movimento suave em vez de um pulo brusco
+      map.getView().animate({
+        center: newCoord,
+        duration: 800 // duração em milissegundos
+      });
+      
+      console.log("Marcador movido e tela centralizada");
+    }
+  ''';
     _controller.runJavaScript(jsCode);
   }
 
@@ -356,26 +367,21 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           children: [
             const Icon(Icons.directions_bus_rounded, size: 28),
             const SizedBox(width: 12),
-            Flexible(
-              child: const Text(
-                'No Ponto',
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+            const Text('No Ponto'),
           ],
         ),
         actions: [
+          // 1. LINHAS
           IconButton(
-            icon: const Icon(Icons.star_rounded),
-            tooltip: 'Favoritos',
+            icon: const Icon(Icons.list_rounded),
+            tooltip: 'Linhas',
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const FavoritesScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const LinesScreen()),
               );
             },
+          // 1. Linhas (Direto no App Bar)
           ),
           IconButton(
             icon: const Icon(Icons.location_on_rounded),
@@ -393,6 +399,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               });
             },
           ),
+          // 2. viagem em tempo real (Direto no App Bar)
           IconButton(
             icon: const Icon(Icons.map_rounded),
             tooltip: 'Planejador',
@@ -405,31 +412,29 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               );
             },
           ),
+          // 4. Menu Dropdown (Apenas Favoritos e Alertas)
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'lines') {
+              if (value == 'favorites') {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const LinesScreen()),
+                  MaterialPageRoute(builder: (context) => const FavoritesScreen()),
                 );
               } else if (value == 'alerts') {
-                print("Clicou em Alertas!"); // Adicione isso para testar
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (context) => const AlertSetupScreen(),
-                  ),
+                  MaterialPageRoute(builder: (context) => const AlertSetupScreen()),
                 );
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
               const PopupMenuItem<String>(
-                value: 'lines',
+                value: 'favorites',
                 child: Row(
                   children: [
-                    Icon(Icons.list_rounded),
+                    Icon(Icons.star_rounded),
                     SizedBox(width: 12),
-                    Text('Linhas'),
+                    Text('Favoritos'),
                   ],
                 ),
               ),
@@ -452,7 +457,6 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
         children: [
           WebViewWidget(
             controller: _controller,
-            // O bloco abaixo garante que o mapa responda ao toque sem travar
             gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
               Factory<OneSequenceGestureRecognizer>(
                 () => EagerGestureRecognizer(),
@@ -476,10 +480,10 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   }
 
   @override
-    void dispose() {
-      _positionStream?.cancel(); // Para o GPS
-      super.dispose();
-    }
+  void dispose() {
+    _positionStream?.cancel(); // Para o GPS
+    super.dispose();
+  }
 }
 
 // Bottom sheet widget que carrega horários automaticamente
@@ -572,7 +576,9 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                 width: 48,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.3),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withOpacity(0.3),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -586,7 +592,9 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.primaryContainer,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
@@ -602,14 +610,20 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                             children: [
                               Text(
                                 'Parada ${widget.stop.id}',
-                                style: Theme.of(context).textTheme.headlineSmall,
+                                style: Theme.of(
+                                  context,
+                                ).textTheme.headlineSmall,
                               ),
-                              if (widget.stop.name != 'Parada ${widget.stop.id}')
+                              if (widget.stop.name !=
+                                  'Parada ${widget.stop.id}')
                                 Text(
                                   widget.stop.name,
-                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                  ),
+                                  style: Theme.of(context).textTheme.bodyMedium
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
                                 ),
                             ],
                           ),
@@ -618,16 +632,22 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                     ),
                     const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.secondaryContainer,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         '${widget.stop.lines.length} linha(s) disponível(is)',
-                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSecondaryContainer,
-                        ),
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSecondaryContainer,
+                            ),
                       ),
                     ),
                   ],
@@ -665,10 +685,13 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                 child: Center(
                                   child: Text(
                                     lineCode,
-                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                   ),
                                 ),
                               ),
@@ -682,14 +705,21 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                         Icon(
                                           Icons.info_outline_rounded,
                                           size: 16,
-                                          color: Theme.of(context).colorScheme.tertiary,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.tertiary,
                                         ),
                                         const SizedBox(width: 4),
                                         Text(
                                           'Sem mais saídas hoje',
-                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                            color: Theme.of(context).colorScheme.tertiary,
-                                          ),
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.tertiary,
+                                              ),
                                         ),
                                       ],
                                     )
@@ -698,15 +728,22 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                         Icon(
                                           Icons.schedule_rounded,
                                           size: 16,
-                                          color: Theme.of(context).colorScheme.secondary,
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.secondary,
                                         ),
                                         const SizedBox(width: 4),
                                         Expanded(
                                           child: Text(
                                             'Próximas: ${schedules.take(3).join(', ')}',
-                                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                              color: Theme.of(context).colorScheme.secondary,
-                                            ),
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color: Theme.of(
+                                                    context,
+                                                  ).colorScheme.secondary,
+                                                ),
                                             overflow: TextOverflow.ellipsis,
                                           ),
                                         ),
@@ -722,7 +759,9 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                       children: [
                                         Text(
                                           'Próximos horários:',
-                                          style: Theme.of(context).textTheme.titleSmall,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleSmall,
                                         ),
                                         const SizedBox(height: 12),
                                         Wrap(
@@ -734,10 +773,14 @@ class _StopSchedulesSheetState extends State<_StopSchedulesSheet> {
                                                 (time) => Chip(
                                                   label: Text(
                                                     time,
-                                                    style: Theme.of(context).textTheme.labelMedium,
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.labelMedium,
                                                   ),
                                                   backgroundColor:
-                                                      Theme.of(context).colorScheme.primaryContainer,
+                                                      Theme.of(context)
+                                                          .colorScheme
+                                                          .primaryContainer,
                                                   side: BorderSide.none,
                                                 ),
                                               )
