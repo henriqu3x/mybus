@@ -71,12 +71,12 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       // 3. Configurações Híbridas (Android + Web/F12)
       final locationSettings = kIsWeb
           ? const LocationSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 0,
+              accuracy: LocationAccuracy.bestForNavigation,
+              distanceFilter: 5,
             )
           : AndroidSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 0, // Mude para 0 para testar, depois volte para 5
+              accuracy: LocationAccuracy.bestForNavigation,
+              distanceFilter: 5, // Mude para 0 para testar, depois volte para 5
               foregroundNotificationConfig: const ForegroundNotificationConfig(
                 notificationTitle: "Monitorando sua viagem",
                 notificationText:
