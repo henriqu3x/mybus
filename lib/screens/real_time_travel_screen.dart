@@ -130,10 +130,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     ).listen((pos) {
       _currentPosition = pos;
       _updateStopsLogic(pos);
-
-      if (!kIsWeb) {
-        _updateUserInMap(pos);
-      }
+      _updateUserInMap(pos);
     });
   }
 
@@ -198,7 +195,20 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
   void _loadHtml() {
     final routeJson = jsonEncode(_route);
+    final stopsList = _orderedStops.map((s) => [s.lon, s.lat]).toList();
+    final stopsJson = jsonEncode(stopsList);
     final dest = widget.destinationStop;
+
+    double initialLat = dest.lat;
+    double initialLon = dest.lon;
+
+    if (_currentPosition != null) {
+      initialLat = _currentPosition!.latitude;
+      initialLon = _currentPosition!.longitude;
+    } else if (_route.isNotEmpty) {
+      initialLon = _route.first[0];
+      initialLat = _route.first[1];
+    }
 
     final html = '''
 <!DOCTYPE html>
@@ -213,6 +223,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 <div id="map"></div>
 <script>
 const route = $routeJson;
+const stops = $stopsJson;
 
 const map = new ol.Map({
   target:'map',
@@ -220,50 +231,67 @@ const map = new ol.Map({
   view:new ol.View({ zoom:15 })
 });
 
+// Route Line
 const routeFeature = new ol.Feature({
   geometry: new ol.geom.LineString(route).transform('EPSG:4326','EPSG:3857')
 });
-
 routeFeature.setStyle(new ol.style.Style({
   stroke: new ol.style.Stroke({ color:'#1976D2', width:6 })
 }));
-
 map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[routeFeature] })
 }));
 
-window.userFeature = new ol.Feature({
-  geometry:new ol.geom.Point(ol.proj.fromLonLat([${dest.lon},${dest.lat}]))
+// Stops Markers (Grey dots)
+const stopFeatures = stops.map(coord => {
+  const f = new ol.Feature({
+    geometry: new ol.geom.Point(ol.proj.fromLonLat(coord))
+  });
+  f.setStyle(new ol.style.Style({
+    image: new ol.style.Circle({
+      radius: 4,
+      fill: new ol.style.Fill({color:'#757575'}),
+      stroke: new ol.style.Stroke({color:'#fff', width:1})
+    })
+  }));
+  return f;
 });
-
-userFeature.setStyle(new ol.style.Style({
-  image:new ol.style.Circle({
-    radius:9,
-    fill:new ol.style.Fill({color:'#2962FF'}),
-    stroke:new ol.style.Stroke({color:'#fff',width:3})
-  })
+map.addLayer(new ol.layer.Vector({
+  source:new ol.source.Vector({ features: stopFeatures })
 }));
 
+// User Marker (Blue Person Icon)
+window.userFeature = new ol.Feature({
+  geometry:new ol.geom.Point(ol.proj.fromLonLat([$initialLon,$initialLat]))
+});
+userFeature.setStyle(new ol.style.Style({
+  image:new ol.style.Icon({
+    anchor: [0.5, 0.5],
+    src: 'https://cdn-icons-png.flaticon.com/512/456/456212.png',
+    color: '#1E88E5',
+    scale: 0.05
+  })
+}));
 map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[userFeature] })
 }));
 
+// Destination Marker
 const destFeature = new ol.Feature({
   geometry:new ol.geom.Point(ol.proj.fromLonLat([${dest.lon},${dest.lat}]))
 });
-
 destFeature.setStyle(new ol.style.Style({
   image:new ol.style.Icon({
+    anchor: [0.5, 1],
     src:'https://cdn-icons-png.flaticon.com/64/684/684908.png',
     scale:0.4
   })
 }));
-
 map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[destFeature] })
 }));
 
-map.getView().setCenter(ol.proj.fromLonLat([${dest.lon},${dest.lat}]));
+map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
 </script>
 </body>
 </html>
