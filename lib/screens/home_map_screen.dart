@@ -34,6 +34,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   StreamSubscription<Position>? _positionStream;
 
   bool _hasActiveTrip = false;
+  bool _hasCenteredMap = false;
   Map<String, dynamic>? _currentTripData;
 
   @override
@@ -192,25 +193,39 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   }
 
   void _updateUserMarkerInJS(Position position) {
+    // Only center the map on the first valid position update
+    final shouldCenter = !_hasCenteredMap;
+    if (shouldCenter) {
+      _hasCenteredMap = true;
+    }
+
     final jsCode =
         '''
     if (window.userFeature) {
       const newCoord = ol.proj.fromLonLat([${position.longitude}, ${position.latitude}]);
       
-      // 1. Move o marcador (o que você já fazia)
+      // 1. Move o marcador
       window.userFeature.getGeometry().setCoordinates(newCoord);
       
-      // 2. CENTRALIZA A TELA (A parte que faltava)
-      // O 'animate' deixa o movimento suave em vez de um pulo brusco
-      map.getView().animate({
-        center: newCoord,
-        duration: 800 // duração em milissegundos
-      });
-      
-      console.log("Marcador movido e tela centralizada");
+      // 2. CENTRALIZA A TELA (Apenas na primeira vez)
+      if ($shouldCenter) {
+        map.getView().animate({
+          center: newCoord,
+          duration: 800
+        });
+      }
     }
   ''';
     _controller.runJavaScript(jsCode);
+  }
+
+  void _centerMapOnUser() {
+    if (_userPosition == null) return;
+    final js = '''
+      const c = ol.proj.fromLonLat([${_userPosition!.longitude}, ${_userPosition!.latitude}]);
+      map.getView().animate({ center: c, duration: 800 });
+    ''';
+    _controller.runJavaScript(js);
   }
 
   void _showStopDetails(int stopId) {
@@ -464,6 +479,19 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
             },
           ),
           if (_isLoading) const Center(child: CircularProgressIndicator()),
+          Positioned(
+            right: 16,
+            bottom: _hasActiveTrip ? 16 : 16, // Adjust if trip button is present
+            child: FloatingActionButton(
+              heroTag: 'centerUser',
+              onPressed: _centerMapOnUser,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              child: Icon(
+                Icons.my_location,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
         ],
       ),
       floatingActionButton: _hasActiveTrip
