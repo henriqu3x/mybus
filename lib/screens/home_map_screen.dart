@@ -221,10 +221,26 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
   void _centerMapOnUser() {
     if (_userPosition == null) return;
-    final js = '''
-      const c = ol.proj.fromLonLat([${_userPosition!.longitude}, ${_userPosition!.latitude}]);
-      map.getView().animate({ center: c, duration: 800 });
-    ''';
+
+    final js =
+        '''
+    const view = map.getView();
+    const c = ol.proj.fromLonLat([${_userPosition!.longitude}, ${_userPosition!.latitude}]);
+
+    // força encerramento de interações ativas
+    map.getInteractions().forEach(i => {
+      if (i.getActive && i.getActive()) {
+        i.setActive(false);
+        i.setActive(true);
+      }
+    });
+
+    view.animate({
+      center: c,
+      duration: 800
+    });
+  ''';
+
     _controller.runJavaScript(js);
   }
 
@@ -396,7 +412,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                 MaterialPageRoute(builder: (context) => const LinesScreen()),
               );
             },
-          // 1. Linhas (Direto no App Bar)
+            // 1. Linhas (Direto no App Bar)
           ),
           IconButton(
             icon: const Icon(Icons.location_on_rounded),
@@ -433,12 +449,16 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               if (value == 'favorites') {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const FavoritesScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const FavoritesScreen(),
+                  ),
                 );
               } else if (value == 'alerts') {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AlertSetupScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const AlertSetupScreen(),
+                  ),
                 );
               }
             },
@@ -481,7 +501,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           if (_isLoading) const Center(child: CircularProgressIndicator()),
           Positioned(
             right: 16,
-            bottom: _hasActiveTrip ? 16 : 16, // Adjust if trip button is present
+            bottom: _hasActiveTrip
+                ? 16
+                : 16, // Adjust if trip button is present
             child: FloatingActionButton(
               heroTag: 'centerUser',
               onPressed: _centerMapOnUser,

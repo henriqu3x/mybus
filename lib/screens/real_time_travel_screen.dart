@@ -122,27 +122,11 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     }
     if (permission == LocationPermission.deniedForever) return;
 
-    late LocationSettings locationSettings;
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      locationSettings = AndroidSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 5,
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: "Viagem em andamento",
-          notificationText: "Rastreando sua localização em tempo real.",
-          enableWakeLock: true,
-        ),
-      );
-    } else {
-      locationSettings = const LocationSettings(
-        accuracy: LocationAccuracy.best,
-        distanceFilter: 5,
-      );
-    }
-
     _positionStream = Geolocator.getPositionStream(
-      locationSettings: locationSettings,
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.best,
+        distanceFilter: 5,
+      ),
     ).listen((pos) {
       _currentPosition = pos;
       _updateStopsLogic(pos);
