@@ -224,21 +224,23 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
     final js =
         '''
-    const view = map.getView();
-    const c = ol.proj.fromLonLat([${_userPosition!.longitude}, ${_userPosition!.latitude}]);
+    {
+      const view = map.getView();
+      const c = ol.proj.fromLonLat([${_userPosition!.longitude}, ${_userPosition!.latitude}]);
 
-    // força encerramento de interações ativas
-    map.getInteractions().forEach(i => {
-      if (i.getActive && i.getActive()) {
-        i.setActive(false);
-        i.setActive(true);
-      }
-    });
+      // força encerramento de interações ativas
+      map.getInteractions().forEach(i => {
+        if (i.getActive && i.getActive()) {
+          i.setActive(false);
+          i.setActive(true);
+        }
+      });
 
-    view.animate({
-      center: c,
-      duration: 800
-    });
+      view.animate({
+        center: c,
+        duration: 800
+      });
+    }
   ''';
 
     _controller.runJavaScript(js);
