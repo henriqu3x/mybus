@@ -9,6 +9,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../services/kml_service.dart';
 import '../services/notification_service.dart';
 import '../services/persistence_service.dart';
+import '../services/background_service.dart';
 
 class RealTimeTravelScreen extends StatefulWidget {
   final String lineName;
@@ -24,7 +25,7 @@ class RealTimeTravelScreen extends StatefulWidget {
   State<RealTimeTravelScreen> createState() => _RealTimeTravelScreenState();
 }
 
-class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
+class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> with WidgetsBindingObserver {
   late final WebViewController _controller;
 
   final KmlService _kmlService = KmlService();
@@ -48,9 +49,34 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initController();
     _loadRoute();
-    _startLocationStream();
+    _startLocationStream(); // Foreground stream
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.paused) {
+      // App minimized -> Start Background Service
+      _positionStream?.cancel(); // Save battery/conflicts
+      await BackgroundService.start();
+      
+      // Send trip data for background processing
+      final stopsMap = _orderedStops.map((s) => {
+        'id': s.id,
+        'name': s.name,
+        'lat': s.lat,
+        'lon': s.lon,
+      }).toList();
+      
+      BackgroundService.sendTripData(stopsMap, _destinationIndex, _currentStopIndex);
+      
+    } else if (state == AppLifecycleState.resumed) {
+      // App resumed -> Stop Background Service, Restart Foreground Stream
+      BackgroundService.stop();
+      _startLocationStream();
+    }
   }
 
   void _initController() {
@@ -122,6 +148,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     }
     if (permission == LocationPermission.deniedForever) return;
 
+    _positionStream?.cancel();
     _positionStream = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.best,
@@ -169,7 +196,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       );
     }
 
-    if (safe == 0 && min < 250) {
+    if (safe == 0 && min < 250) { // 250 meters threshold
       _notificationService.showImmediateNotification(
         id: 0,
         title: 'Chegando!',
@@ -295,7 +322,7 @@ map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
 </script>
 </body>
 </html>
-''';
+    ''';
 
     _controller.loadHtmlString(html);
     setState(() => _loading = false);
@@ -370,6 +397,8 @@ map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
 
     if (ok == true) {
       await _positionStream?.cancel();
+      // Also stop background service if running
+      BackgroundService.stop();
       await PersistenceService().clearActiveTrip();
       if (mounted) Navigator.pop(context);
     }
@@ -377,7 +406,9 @@ map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _positionStream?.cancel();
+    BackgroundService.stop(); // Ensure service stops when screen is closed
     super.dispose();
   }
 }

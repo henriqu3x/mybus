@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentação Técnica - No Ponto</title>
+    <style>
+        :root {
+            --primary-color: #1a73e8;
+            --secondary-color: #1557b0;
+            --bg-color: #f8f9fa;
+            --text-color: #333;
+            --code-bg: #f1f3f4;
+            --border-color: #dee2e6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        header h1 {
+            margin: 0;
+            text-align: center;
+            font-size: 2.5rem;
+        }
+
+        header p {
+            text-align: center;
+            opacity: 0.9;
+        }
+
+        nav ul {
+            display: flex;
+            justify-content: center;
+            list-style: none;
+            padding: 0;
+            margin-top: 1rem;
+        }
+
+        nav ul li {
+            margin: 0 15px;
+        }
+
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        nav a:hover {
+            text-decoration: underline;
+        }
+
+        section {
+            background: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        h2 {
+            color: var(--primary-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-top: 0;
+        }
+
+        h3 {
+            color: var(--secondary-color);
+            margin-top: 1.5rem;
+        }
+
+        code {
+            background-color: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+            color: #d63384;
+        }
+
+        pre {
+            background-color: #2d2d2d;
+            color: #f8f8f2;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        ul {
+            padding-left: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: var(--code-bg);
+            color: var(--primary-color);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            color: white;
+        }
+
+        .android { background-color: #3ddc84; color: #000; }
+        .ios { background-color: #000; }
+        .web { background-color: #1a73e8; }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="container">
+        <h1>No Ponto - Documentação Técnica</h1>
+        <p>Versão 1.0.0+1 | Data: 05/02/2026</p>
+        <nav>
+            <ul>
+                <li><a href="#overview">Visão Geral</a></li>
+                <li><a href="#architecture">Arquitetura</a></li>
+                <li><a href="#structure">Estrutura</a></li>
+                <li><a href="#features">Funcionalidades</a></li>
+                <li><a href="#background">Serviço de Background</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<div class="container">
+
+    <section id="overview">
+        <h2>Visão Geral do Projeto</h2>
+        <p>O <strong>No Ponto</strong> é uma aplicação Flutter desenvolvida para auxiliar usuários do transporte público em Fortaleza. O aplicativo oferece funcionalidades de planejamento de rotas, acompanhamento em tempo real, consulta de itinerários offline e sistema de alertas de paradas.</p>
+        
+        <h3>Tecnologias Principais</h3>
+        <ul>
+            <li><strong>Framework:</strong> Flutter SDK > 3.10.0</li>
+            <li><strong>Linguagem:</strong> Dart</li>
+            <li><strong>Gerenciamento de Estado:</strong> Provider</li>
+            <li><strong>Mapas:</strong> Google Maps Flutter / OpenLayers (WebView)</li>
+            <li><strong>Persistência:</strong> Shared Preferences, JSON Assets</li>
+            <li><strong>Localização:</strong> Geolocator, Flutter Background Service</li>
+        </ul>
+    </section>
+
+    <section id="architecture">
+        <h2>Arquitetura e Dependências</h2>
+        <p>O projeto segue um padrão arquitetural MVVM simplificado, utilizando o pacote <code>provider</code> para injeção de dependência e gerenciamento de estado global.</p>
+
+        <h3>Dependências Chave (pubspec.yaml)</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Pacote</th>
+                    <th>Propósito</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>provider</code></td>
+                    <td>Gerenciamento de estado (Ex: <code>BusProvider</code>).</td>
+                </tr>
+                <tr>
+                    <td><code>geolocator</code></td>
+                    <td>Acesso ao GPS do dispositivo.</td>
+                </tr>
+                <tr>
+                    <td><code>flutter_background_service</code></td>
+                    <td>Execução de código Dart em segundo plano (Isolates).</td>
+                </tr>
+                <tr>
+                    <td><code>flutter_local_notifications</code></td>
+                    <td>Exibição de notificações locais e alertas.</td>
+                </tr>
+                <tr>
+                    <td><code>webview_flutter</code></td>
+                    <td>Renderização de mapas avançados via OpenLayers/HTML.</td>
+                </tr>
+                 <tr>
+                    <td><code>google_maps_flutter</code></td>
+                    <td>Interface de mapa nativa para a tela inicial.</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="structure">
+        <h2>Estrutura do Projeto</h2>
+        <p>O código fonte reside em <code>lib/</code> e está organizado por responsabilidade semântica.</p>
+
+        <h3>Diretórios Principais</h3>
+        <ul>
+            <li><code>/lib/main.dart</code>: Ponto de entrada da aplicação. Inicializa serviços e configurações globais.</li>
+            <li><code>/lib/models/</code>: Classes de dados (DTOs) como <code>Line</code>, <code>StopInfo</code>, <code>Itinerary</code>.</li>
+            <li><code>/lib/screens/</code>: Telas da aplicação (UI).
+                <ul>
+                    <li><code>home_map_screen.dart</code>: Mapa principal com busca de rotas.</li>
+                    <li><code>real_time_travel_screen.dart</code>: Tela de acompanhamento de viagem ativa.</li>
+                    <li><code>course_planner_screen.dart</code>: Planejador de trajetos.</li>
+                    <li><code>line_detail_screen.dart</code>: Detalhes e mapa de uma linha específica.</li>
+                </ul>
+            </li>
+            <li><code>/lib/services/</code>: Lógica de negócios e integração com APIs/Sistema.
+                <ul>
+                    <li><code>background_service.dart</code>: Lógica de rastreamento em segundo plano.</li>
+                    <li><code>kml_service.dart</code>: Parser de arquivos KML para rotas de ônibus.</li>
+                    <li><code>notification_service.dart</code>: Gerenciador de canais e disparos de notificações.</li>
+                    <li><code>api_service.dart</code>: Comunicação com backends externos (se houver).</li>
+                </ul>
+            </li>
+            <li><code>/lib/providers/</code>:
+                <ul>
+                    <li><code>bus_provider.dart</code>: Centraliza o estado global das linhas e paradas carregadas.</li>
+                </ul>
+            </li>
+        </ul>
+    </section>
+
+    <section id="features">
+        <h2>Funcionalidades Detalhadas</h2>
+        
+        <h3>1. Acompanhamento em Tempo Real</h3>
+        <p>Permite que o usuário selecione uma linha e um destino. O app monitora a posição GPS do usuário em relação à rota do ônibus.</p>
+        <ul>
+            <li><strong>UI:</strong> Utiliza <code>WebView</code> com OpenLayers para desenhar a rota e a posição do usuário, permitindo animações suaves (ex: gradiente no traçado da rota).</li>
+            <li><strong>Lógica:</strong> Calcula a distância euclidiana para a próxima parada e estima paradas restantes.</li>
+        </ul>
+
+        <h3>2. Planejador de Rotas</h3>
+        <p>Algoritmo personalizado que utiliza grafos (construídos a partir dos dados de paradas e linhas) para encontrar o melhor trajeto entre dois pontos.</p>
+
+        <h3>3. Dados Offline</h3>
+        <p>O aplicativo carrega dados estáticos de rotas e paradas a partir de arquivos assets (KML/JSON), garantindo funcionamento básico mesmo sem internet constante (exceto para tiles do mapa).</p>
+    </section>
+
+    <section id="background">
+        <h2>Sistema de Rastreamento em Segundo Plano</h2>
+        <p>Esta é uma funcionalidade crítica implementada para garantir que o usuário continue sendo monitorado mesmo com o app minimizado.</p>
+
+        <h3>Fluxo de Funcionamento</h3>
+        <ol>
+            <li><strong>Inicialização:</strong> O <code>BackgroundService</code> é configurado no <code>SplashScreen</code>.</li>
+            <li><strong>Lifecycle:</strong> O <code>RealTimeTravelScreen</code> observa o estado do app (<code>didChangeAppLifecycleState</code>).</li>
+            <li><strong>Pausa (Minimizar):</strong>
+                <ul>
+                    <li>O stream de GPS da UI é pausado.</li>
+                    <li>O <code>BackgroundService</code> é iniciado.</li>
+                    <li>Os dados da viagem atual (paradas, destino) são enviados via <code>sendTripData</code> para o Isolate de background.</li>
+                </ul>
+            </li>
+            <li><strong>Execução (Background):</strong>
+                <ul>
+                    <li>O serviço roda um <code>Geolocator.getPositionStream</code> com configurações de alta precisão e <code>enableWakeLock</code>.</li>
+                    <li>Calcula a distância para as paradas restantes.</li>
+                    <li>Dispara notificações locais ("Faltam 3 paradas", "Chegando!") independentemente da UI.</li>
+                </ul>
+            </li>
+            <li><strong>Retorno (Resumo):</strong>
+                <ul>
+                    <li>O serviço de background é parado.</li>
+                    <li>A UI retoma o controle do GPS e atualiza o mapa visualmente.</li>
+                </ul>
+            </li>
+        </ol>
+
+        <h3>Configurações Críticas (Android)</h3>
+        <p>Para funcionar no Android 14+, as seguintes permissões foram configuradas no <code>AndroidManifest.xml</code>:</p>
+        <pre><code>&lt;uses-permission android:name="android.permission.FOREGROUND_SERVICE" /&gt;
+&lt;uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" /&gt;
+&lt;uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /&gt;</code></pre>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 No Ponto Dev Team. Documentação gerada automaticamente.</p>
+    </footer>
+
+</div>
+
+</body>
+</html>
