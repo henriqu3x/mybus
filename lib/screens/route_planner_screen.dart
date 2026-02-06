@@ -22,7 +22,8 @@ class RoutePlannerScreen extends StatefulWidget {
 class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
   Logradouro? _origin;
   Logradouro? _destination;
-  List<GraphEdge>? _route;
+  List<List<GraphEdge>>? _routes; // Changed from single route to list
+  int _selectedRouteIndex = 0; // State for selected option
   bool _calculating = false;
   bool _hasCalculated = false;
 
@@ -41,18 +42,19 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
 
     setState(() {
       _calculating = true;
-      _route = null;
+      _routes = null;
+      _selectedRouteIndex = 0;
       _hasCalculated = true;
     });
 
     final provider = Provider.of<BusProvider>(context, listen: false);
-    // findRoute is now async because it fetches schedules
-    final route = await provider.findRoute(_origin!.id, _destination!.id);
+    // Now calls findRoutes which returns List<List<GraphEdge>>
+    final routes = await provider.findRoutes(_origin!.id, _destination!.id);
 
     if (!mounted) return;
 
     setState(() {
-      _route = route;
+      _routes = routes;
       _calculating = false;
     });
   }
@@ -165,154 +167,155 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           ],
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Consumer<BusProvider>(
-              builder: (context, provider, child) {
-                if (provider.logradouros.isEmpty && !provider.isGraphBuilding) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Consumer<BusProvider>(
+                builder: (context, provider, child) {
+                  if (provider.logradouros.isEmpty && !provider.isGraphBuilding) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                if (provider.isGraphBuilding) {
-                  return Card(
-                    color: Colors.orangeAccent,
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Row(
-                        children: [
-                          const CircularProgressIndicator(color: Colors.white),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Text(
-                              'Construindo rede de transporte... Isso pode levar um momento.',
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(color: Colors.white),
+                  if (provider.isGraphBuilding) {
+                    return Card(
+                      color: Colors.orangeAccent,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Row(
+                          children: [
+                            const CircularProgressIndicator(color: Colors.white),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Text(
+                                'Construindo rede de transporte... Isso pode levar um momento.',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(color: Colors.white),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                }
+                    );
+                  }
 
-                return Column(
-                  children: [
-                    // Campo de Origem
-                    Autocomplete<Logradouro>(
-                      optionsBuilder: (TextEditingValue textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return const Iterable<Logradouro>.empty();
-                        }
-                        return provider.logradouros.where((Logradouro option) {
-                          return option.nome.toLowerCase().contains(
-                            textEditingValue.text.toLowerCase(),
-                          );
-                        });
-                      },
-                      displayStringForOption: (Logradouro option) =>
-                          option.nome,
-                      onSelected: (Logradouro selection) {
-                        setState(() => _origin = selection);
-                      },
-                      fieldViewBuilder:
-                          (
-                            context,
-                            textEditingController,
-                            focusNode,
-                            onFieldSubmitted,
-                          ) {
-                            return TextField(
-                              controller: textEditingController,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Origem',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.my_location),
-                              ),
+                  return Column(
+                    children: [
+                      // Campo de Origem
+                      Autocomplete<Logradouro>(
+                        optionsBuilder: (TextEditingValue textEditingValue) {
+                          if (textEditingValue.text.isEmpty) {
+                            return const Iterable<Logradouro>.empty();
+                          }
+                          return provider.logradouros.where((Logradouro option) {
+                            return option.nome.toLowerCase().contains(
+                              textEditingValue.text.toLowerCase(),
                             );
-                          },
-                    ),
-                    const SizedBox(height: 16),
-                    // Campo de Destino
-                    Autocomplete<Logradouro>(
-                      optionsBuilder: (TextEditingValue textEditingValue) {
-                        if (textEditingValue.text.isEmpty) {
-                          return const Iterable<Logradouro>.empty();
-                        }
-                        return provider.logradouros.where((Logradouro option) {
-                          return option.nome.toLowerCase().contains(
-                            textEditingValue.text.toLowerCase(),
-                          );
-                        });
-                      },
-                      displayStringForOption: (Logradouro option) =>
-                          option.nome,
-                      onSelected: (Logradouro selection) {
-                        setState(() => _destination = selection);
-                      },
-                      fieldViewBuilder:
-                          (
-                            context,
-                            textEditingController,
-                            focusNode,
-                            onFieldSubmitted,
-                          ) {
-                            return TextField(
-                              controller: textEditingController,
-                              focusNode: focusNode,
-                              decoration: const InputDecoration(
-                                labelText: 'Destino',
-                                border: OutlineInputBorder(),
-                                prefixIcon: Icon(Icons.location_on),
-                              ),
-                            );
-                          },
-                    ),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed:
-                  (_origin != null && _destination != null && !_calculating)
-                  ? _calculateRoute
-                  : null,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 56),
-                backgroundColor: Theme.of(context).colorScheme.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Theme.of(context).colorScheme.surfaceVariant,
-                elevation: 2,
-              ),
-              icon: _calculating
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
+                          });
+                        },
+                        displayStringForOption: (Logradouro option) =>
+                            option.nome,
+                        onSelected: (Logradouro selection) {
+                          setState(() => _origin = selection);
+                        },
+                        fieldViewBuilder:
+                            (
+                              context,
+                              textEditingController,
+                              focusNode,
+                              onFieldSubmitted,
+                            ) {
+                              return TextField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Origem',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.my_location),
+                                ),
+                              );
+                            },
                       ),
-                    )
-                  : const Icon(Icons.search_rounded, size: 24),
-              label: Text(
-                _calculating ? 'Calculando...' : 'Calcular Rota',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
+                      const SizedBox(height: 16),
+                      // Campo de Destino
+                      Autocomplete<Logradouro>(
+                        optionsBuilder: (TextEditingValue textEditingValue) {
+                          if (textEditingValue.text.isEmpty) {
+                            return const Iterable<Logradouro>.empty();
+                          }
+                          return provider.logradouros.where((Logradouro option) {
+                            return option.nome.toLowerCase().contains(
+                              textEditingValue.text.toLowerCase(),
+                            );
+                          });
+                        },
+                        displayStringForOption: (Logradouro option) =>
+                            option.nome,
+                        onSelected: (Logradouro selection) {
+                          setState(() => _destination = selection);
+                        },
+                        fieldViewBuilder:
+                            (
+                              context,
+                              textEditingController,
+                              focusNode,
+                              onFieldSubmitted,
+                            ) {
+                              return TextField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Destino',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.location_on),
+                                ),
+                              );
+                            },
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed:
+                    (_origin != null && _destination != null && !_calculating)
+                    ? _calculateRoute
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 56),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Theme.of(context).colorScheme.surfaceVariant,
+                  elevation: 2,
+                ),
+                icon: _calculating
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.search_rounded, size: 24),
+                label: Text(
+                  _calculating ? 'Calculando...' : 'Calcular Rota',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(child: _buildRouteResult()),
-          ],
+              const SizedBox(height: 16),
+              _buildRouteResult(),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  // --- NOVO MÉTODO: EXIBIÇÃO CLARA DOS RESULTADOS AGRUPADOS ---
   Widget _buildRouteResult() {
     if (_calculating) {
       return const Center(child: CircularProgressIndicator());
@@ -324,22 +327,26 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       );
     }
 
-    if (_route == null || _route!.isEmpty) {
+    if (_routes == null || _routes!.isEmpty) {
       return const Center(
         child: Text('Nenhuma rota encontrada entre estes pontos.'),
       );
     }
 
-    // 1. Agrupa as arestas em segmentos legíveis
-    final segmentedRoute = _groupRouteSegments(_route!);
+    // Get selected route
+    final currentRoute = _routes![_selectedRouteIndex];
 
-    // 2. Calcula Métricas com base nos Segmentos
+    // 1. Agrupa as arestas em segmentos legíveis
+    final segmentedRoute = _groupRouteSegments(currentRoute);
+
+    // ... Calculation logic remains same (moved inside) ...
+    // Calculate metrics for current route
     double totalDistance = segmentedRoute.fold(
       0.0,
       (sum, seg) => sum + seg.distance,
     );
 
-    // Número de trocas ignorando mudança de sentido na mesma linha
+     // Número de trocas
     int transfers = 0;
     for (int i = 0; i < segmentedRoute.length - 1; i++) {
       final current = segmentedRoute[i].lineName
@@ -353,10 +360,9 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
       }
     }
 
-    // Adiciona tempo para trocas (e.g., 10 minutos por troca REAL)
+    // Tempo total
     int totalTime = TimeUtils.calculateTravelTimeMinutes(totalDistance) + (transfers * 10);
-
-    // 2. Criação da String de intervalo para a UI (O que o usuário vai ver)
+    
     final minTime = (totalTime - 2) > 0 ? (totalTime - 2) : totalTime;
     final maxTime = totalTime + 2;
     final timeRangeLabel = "$minTime - $maxTime min";
@@ -364,7 +370,14 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Card de Resumo
+        // SHOW OPTION SELECTOR IF MULTIPLE ROUTES
+        if (_routes!.length > 1)
+           _buildRouteOptionsSelector(),
+           
+        const SizedBox(height: 8),
+
+        // Card de Resumo (Updated to use calculated vars)
+        // ... (Keep existing Card logic but update onTap to pass current vars) ...
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -549,25 +562,26 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
         ),
 
         // Lista de Segmentos (mesclados por linha base para evitar duplicatas)
-        Expanded(
-          child: Builder(
-            builder: (context) {
-              final displaySegments = _mergeSegmentsByLineBase(segmentedRoute);
-              return ListView.separated(
-                itemCount: displaySegments.length,
-                separatorBuilder: (context, index) {
-                  // Mostrar indicador de transferência após cada segmento (exceto o último)
-                  if (index < displaySegments.length - 1) {
-                final currentSegment = displaySegments[index];
-                final nextSegment = displaySegments[index + 1];
+        Builder(
+          builder: (context) {
+            final displaySegments = _mergeSegmentsByLineBase(segmentedRoute);
+            return ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: displaySegments.length,
+              separatorBuilder: (context, index) {
+                // Mostrar indicador de transferência após cada segmento (exceto o último)
+                if (index < displaySegments.length - 1) {
+                  final currentSegment = displaySegments[index];
+                  final nextSegment = displaySegments[index + 1];
 
-                // Verificar se é mudança de sentido na mesma linha (não mostrar como transferência)
-                final currentLineBase = currentSegment.lineName
-                    .replaceAll('_IDA', '')
-                    .replaceAll('_VOLTA', '');
-                final nextLineBase = nextSegment.lineName
-                    .replaceAll('_IDA', '')
-                    .replaceAll('_VOLTA', '');
+                  // Verificar se é mudança de sentido na mesma linha (não mostrar como transferência)
+                  final currentLineBase = currentSegment.lineName
+                      .replaceAll('_IDA', '')
+                      .replaceAll('_VOLTA', '');
+                  final nextLineBase = nextSegment.lineName
+                      .replaceAll('_IDA', '')
+                      .replaceAll('_VOLTA', '');
 
                 // Se for a mesma linha mudando de sentido, não mostrar indicador de transferência
                 if (currentLineBase == nextLineBase) {
@@ -781,8 +795,75 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
           );
             }
           ),
-        ),
+
       ],
+    );
+  }
+
+  Widget _buildRouteOptionsSelector() {
+    return Column(
+      children: List.generate(_routes!.length, (index) {
+        final isSelected = index == _selectedRouteIndex;
+        final route = _routes![index];
+        final segments = _groupRouteSegments(route);
+        
+        // Basic metrics
+        double distance = segments.fold(0.0, (s, seg) => s + seg.distance);
+        // int time = TimeUtils.calculateTravelTimeMinutes(distance); // Not used in label currently
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: InkWell(
+            onTap: () {
+              setState(() => _selectedRouteIndex = index);
+            },
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+              decoration: BoxDecoration(
+                color: isSelected 
+                    ? Theme.of(context).colorScheme.primaryContainer 
+                    : Colors.grey[300], // Darker gray for unselected
+                borderRadius: BorderRadius.circular(12),
+                border: isSelected 
+                    ? Border.all(color: Theme.of(context).colorScheme.primary, width: 2)
+                    : null,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.directions_bus, 
+                    color: isSelected 
+                        ? Theme.of(context).colorScheme.primary 
+                        : Colors.black54
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    "Opção ${index + 1}",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: isSelected 
+                          ? Theme.of(context).colorScheme.onPrimaryContainer 
+                          : Colors.black87,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    "${(distance/1000).toStringAsFixed(1)} km",
+                    style: TextStyle(
+                      color: isSelected 
+                          ? Theme.of(context).colorScheme.onPrimaryContainer 
+                          : Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }),
     );
   }
 

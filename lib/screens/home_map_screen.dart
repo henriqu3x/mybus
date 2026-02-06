@@ -352,9 +352,9 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
 
           window.userFeature.setStyle(new ol.style.Style({
               image: new ol.style.Circle({
-                  radius: 8,
+                  radius: 10,
                   fill: new ol.style.Fill({color: 'blue'}),
-                  stroke: new ol.style.Stroke({color: 'white', width: 2})
+                  stroke: new ol.style.Stroke({color: 'white', width: 3})
               })
           }));
           const userLayer = new ol.layer.Vector({

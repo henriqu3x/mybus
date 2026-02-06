@@ -70,6 +70,7 @@ class TransportGraph {
     int endId, {
     Map<String, int>? initialWaitTimes,
     Set<String>? excludedLines,
+    Set<String>? penalizedLines,
   }) {
     final Map<String, GraphEdge> previousEdge = {};
     // Key: State, Value: Previous State Key
@@ -163,6 +164,12 @@ class TransportGraph {
             // Convert minutes to meters equivalent
             penalty += waitMinutes * speedMetersPerMinute;
           }
+        }
+
+        // Apply penalty for alternative route generation
+        if (penalizedLines != null && penalizedLines.contains(edge.lineName)) {
+           // Massive penalty to discourage re-using this line unless absolutely necessary
+           penalty += 500000.0;
         }
 
         double newCost = current.cost + edge.weight + penalty;

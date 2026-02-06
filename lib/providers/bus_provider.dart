@@ -186,31 +186,108 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  Future<List<GraphEdge>?> findRoute(int startLogId, int endLogId) async {
-    if (_graph == null) return null;
+  /// Finds up to 3 distinct routes between start and end.
+  Future<List<List<GraphEdge>>> findRoutes(int startLogId, int endLogId) async {
+    final List<List<GraphEdge>> foundRoutes = [];
+    if (_graph == null) return foundRoutes;
 
-    // Calculate initial wait times for lines at the start node
-    final Map<String, int> initialWaitTimes = {};
+    final Map<String, int> initialWaitTimes = await _calculateInitialWaitTimes(startLogId); // Refactored helper
+    final Set<String> penalizedLines = {};
+
+    // Try to find up to 3 routes
+    for (int i = 0; i < 3; i++) {
+        final route = await _findSingleValidRoute(
+            startLogId, 
+            endLogId, 
+            initialWaitTimes,
+            penalizedLines: penalizedLines // Pass cached penalties
+        );
+
+        if (route != null) {
+            // Check if this route is significantly different or new?
+            // For now, assume penalties make it different enough.
+            // But we should check for duplicates in IDs/Structure if needed.
+             // Simple duplicate check based on string representation of lines
+            final routeStr = route.map((e) => e.lineName).join(',');
+            final isDuplicate = foundRoutes.any((r) => r.map((e) => e.lineName).join(',') == routeStr);
+
+            if (!isDuplicate) {
+                foundRoutes.add(route);
+
+                // Add lines from this route to penalized set to encourage variety
+                for (final edge in route) {
+                    penalizedLines.add(edge.lineName);
+                }
+            } else {
+                // If we found a duplicate, maybe stop or try harder? 
+                // If current penalty resulted in same route, stop trying.
+                break;
+            }
+        } else {
+            // No more routes found
+            break;
+        }
+    }
+    
+    return foundRoutes;
+  }
+
+  // Refactored from previous big method
+  Future<List<GraphEdge>?> _findSingleValidRoute(
+      int startLogId, 
+      int endLogId, 
+      Map<String, int> initialWaitTimes,
+      {Set<String>? penalizedLines}
+  ) async {
+     // Iterative validation: find route, validate all segments, exclude bad lines, retry
+    final Set<String> excludedLines = {}; // Hard exclude for invalid schedules
+    int attempts = 0;
+    const maxAttempts = 5;
     
     final today = DateTime.now();
     final dateStr = "${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}";
     final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
     
-    try {
-      // Get all lines starting from this node
-      // We can't easily get edges from the graph without exposing adjacencyList, 
-      // but we can iterate over _linhas and check if they pass through startLogId
-      // OR better: expose neighbors from TransportGraph.
-      // Since we can't change TransportGraph easily here without re-reading, 
-      // let's use the cached itineraries which we have.
+    while (attempts < maxAttempts) {
+      var route = _graph!.findShortestPath(
+        startLogId, 
+        endLogId, 
+        initialWaitTimes: initialWaitTimes,
+        excludedLines: excludedLines,
+        penalizedLines: penalizedLines,
+      );
+      
+      if (route == null || route.isEmpty) {
+        return null;
+      }
+      
+      // Validate all segments of the route
+      final invalidLine = await _validateRouteSegments(route, currentMinutes, dateStr);
+      
+      if (invalidLine == null) {
+        return route;
+      }
+      
+      // Route has invalid segment, exclude that line and retry
+      excludedLines.add(invalidLine);
+      attempts++;
+    }
+    
+    return null;
+  }
 
-      // Find lines passing through startLogId
+  // Helper method extracted from original code to reuse in findRoutes
+  // Need to implement this helper as it wasn't separate before
+  Future<Map<String, int>> _calculateInitialWaitTimes(int startLogId) async {
+    final Map<String, int> initialWaitTimes = {};
+    final today = DateTime.now();
+    final dateStr = "${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}";
+    final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
+
       for (var linha in _linhas) {
         if (!_itinerarioCache.containsKey(linha.numero)) continue;
         
         final itinerarioCompleto = _itinerarioCache[linha.numero]!;
-        int? waitTimeIda;
-        int? waitTimeVolta;
 
         // Check Ida
         if (itinerarioCompleto.ida != null) {
@@ -278,40 +355,7 @@ class BusProvider with ChangeNotifier {
            }
         }
       }
-    } catch (e) {
-    }
-
-    // Iterative validation: find route, validate all segments, exclude bad lines, retry
-    final Set<String> excludedLines = {};
-    int attempts = 0;
-    const maxAttempts = 10;
-    
-    while (attempts < maxAttempts) {
-      var route = _graph!.findShortestPath(
-        startLogId, 
-        endLogId, 
-        initialWaitTimes: initialWaitTimes,
-        excludedLines: excludedLines,
-      );
-      
-      if (route == null || route.isEmpty) {
-        return null;
-      }
-      
-      // Validate all segments of the route
-      final invalidLine = await _validateRouteSegments(route, currentMinutes, dateStr);
-      
-      if (invalidLine == null) {
-        // Route is valid!
-        return route;
-      }
-      
-      // Route has invalid segment, exclude that line and retry
-      excludedLines.add(invalidLine);
-      attempts++;
-    }
-    
-    return null;
+      return initialWaitTimes;
   }
 
   /// Validates all segments of a route by simulating the journey timeline.
