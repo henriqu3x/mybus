@@ -13,6 +13,8 @@ import 'lines_screen.dart';
 import 'stop_detail_screen.dart';
 import 'real_time_selection_screen.dart';
 import 'real_time_travel_screen.dart';
+import 'terms_screen.dart';
+import 'privacy_policy_screen.dart';
 import '../services/persistence_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -462,6 +464,20 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                     builder: (context) => const AlertSetupScreen(),
                   ),
                 );
+              } else if (value == 'terms') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TermsScreen(),
+                  ),
+                );
+              } else if (value == 'privacy') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PrivacyPolicyScreen(),
+                  ),
+                );
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
@@ -482,6 +498,27 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
                     Icon(Icons.notifications_rounded),
                     SizedBox(width: 12),
                     Text('Alertas'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+               const PopupMenuItem<String>(
+                value: 'terms',
+                child: Row(
+                  children: [
+                    Icon(Icons.description_rounded),
+                    SizedBox(width: 12),
+                    Text('Termos de Uso'),
+                  ],
+                ),
+              ),
+               const PopupMenuItem<String>(
+                value: 'privacy',
+                child: Row(
+                  children: [
+                    Icon(Icons.privacy_tip_rounded),
+                    SizedBox(width: 12),
+                    Text('Políticas de Privacidade'),
                   ],
                 ),
               ),
