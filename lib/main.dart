@@ -5,7 +5,6 @@ import 'screens/splash_screen.dart';
 import 'services/favorites_service.dart';
 import 'services/notification_service.dart';
 import 'utils/app_theme.dart';
-import 'services/background_service.dart';
 
 void main() async {
   // Ensure Flutter bindings are initialized before using platform channels

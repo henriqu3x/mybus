@@ -5,8 +5,6 @@ import '../providers/bus_provider.dart';
 import '../utils/app_theme.dart';
 import 'home_map_screen.dart';
 
-import '../services/background_service.dart';
-
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -44,9 +42,6 @@ class _SplashScreenState extends State<SplashScreen>
       provider.fetchLinhas();
       provider.fetchLogradouros();
       provider.buildGraph(); // Start building the graph in background
-      
-      // Initialize background service without blocking UI
-      BackgroundService.initialize();
     });
 
     Timer(const Duration(seconds: 5), () {
