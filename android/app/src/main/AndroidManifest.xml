@@ -55,6 +55,18 @@
             android:foregroundServiceType="location"
         />
         
+        <!-- Geofence Service -->
+        <service
+            android:name="com.pravera.geofence_service.GeofenceBroadcastReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+            
+        <receiver
+            android:name="com.pravera.geofence_service.GeofenceBroadcastReceiver"
+            android:exported="true"
+            android:enabled="true">
+        </receiver>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

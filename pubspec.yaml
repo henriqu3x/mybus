@@ -60,6 +60,7 @@ dependencies:
   flutter_map: ^6.0.0
   latlong2: ^0.9.0
   pointer_interceptor: ^0.10.1+2
+  geofence_service: ^6.0.0+1
 
 dev_dependencies:
   flutter_test:

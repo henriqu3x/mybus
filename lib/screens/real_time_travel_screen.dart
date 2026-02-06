@@ -9,6 +9,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import '../services/kml_service.dart';
 import '../services/notification_service.dart';
 import '../services/persistence_service.dart';
+import '../services/geofence_manager.dart';
 
 class RealTimeTravelScreen extends StatefulWidget {
   final String lineName;
@@ -92,7 +93,17 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     _destinationIndex = _orderedStops
         .indexWhere((s) => s.id == widget.destinationStop.id);
 
+    // Call _loadHtml first to ensure UI shows up immediately
     _loadHtml();
+
+    // Initialize Background Geofencing safely
+    try {
+      await GeofenceManager.instance.initialize();
+      // We don't await the startTrip to avoid blocking anything else if it takes time
+      GeofenceManager.instance.startTrip(_orderedStops, _destinationIndex);
+    } catch (e) {
+      print("Error initializing Geofencing: $e");
+    }
   }
 
   int _closestIndex(StopInfo stop) {
@@ -160,22 +171,10 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
     setState(() => _remainingStops = safe);
 
-    if (safe <= 3 && safe > 0 && _lastNotified != safe) {
-      _lastNotified = safe;
-      _notificationService.showImmediateNotification(
-        id: safe,
-        title: 'Viagem em andamento',
-        body: 'Faltam $safe paradas para o seu destino.',
-      );
-    }
+    setState(() => _remainingStops = safe);
 
-    if (safe == 0 && min < 250) {
-      _notificationService.showImmediateNotification(
-        id: 0,
-        title: 'Chegando!',
-        body: 'Prepare-se para descer.',
-      );
-    }
+    // Notifications are now handled by GeofenceManager to ensure they work in background/minimized.
+    // We only update the UI state here.
   }
 
   /* ================= JS ================= */
@@ -370,6 +369,7 @@ map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
 
     if (ok == true) {
       await _positionStream?.cancel();
+      await GeofenceManager.instance.stopTrip();
       await PersistenceService().clearActiveTrip();
       if (mounted) Navigator.pop(context);
     }
@@ -378,6 +378,7 @@ map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
   @override
   void dispose() {
     _positionStream?.cancel();
+    GeofenceManager.instance.stopTrip();
     super.dispose();
   }
 }
