@@ -123,16 +123,46 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
       // Create separate async operation to save persistence
       PersistenceService().saveActiveTrip(_selectedLine!, _selectedStop!);
       
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RealTimeTravelScreen(
-            lineName: _selectedLine!, 
-            destinationStop: _selectedStop!,
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Localização em Segundo Plano'),
+          content: const Text(
+            'Para notificá-lo quando estiver chegando, o app precisa acessar sua localização mesmo quando minimizado.\n\nDeseja permitir esse recurso?',
           ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _navigateToTravel(false); // User declined
+              },
+              child: const Text('Não, apenas usar mapa'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _navigateToTravel(true); // User accepted
+              },
+              child: const Text('Sim, ativar notificações'),
+            ),
+          ],
         ),
       );
     }
+  }
+
+  void _navigateToTravel(bool enableBackground) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RealTimeTravelScreen(
+          lineName: _selectedLine!, 
+          destinationStop: _selectedStop!,
+          enableBackground: enableBackground,
+        ),
+      ),
+    );
   }
 
   @override

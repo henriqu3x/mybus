@@ -14,11 +14,13 @@ import '../services/geofence_manager.dart';
 class RealTimeTravelScreen extends StatefulWidget {
   final String lineName;
   final StopInfo destinationStop;
+  final bool enableBackground;
 
   const RealTimeTravelScreen({
     super.key,
     required this.lineName,
     required this.destinationStop,
+    this.enableBackground = true,
   });
 
   @override
@@ -97,12 +99,16 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     _loadHtml();
 
     // Initialize Background Geofencing safely
-    try {
-      await GeofenceManager.instance.initialize();
-      // We don't await the startTrip to avoid blocking anything else if it takes time
-      GeofenceManager.instance.startTrip(_orderedStops, _destinationIndex);
-    } catch (e) {
-      print("Error initializing Geofencing: $e");
+    if (widget.enableBackground) {
+      try {
+        await GeofenceManager.instance.initialize();
+        // We don't await the startTrip to avoid blocking anything else if it takes time
+        GeofenceManager.instance.startTrip(_orderedStops, _destinationIndex);
+      } catch (e) {
+        print("Error initializing Geofencing: $e");
+      }
+    } else {
+      print("Geofencing skipped by user choice.");
     }
   }
 
@@ -171,10 +177,37 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
     setState(() => _remainingStops = safe);
 
-    setState(() => _remainingStops = safe);
-
     // Notifications are now handled by GeofenceManager to ensure they work in background/minimized.
     // We only update the UI state here.
+    
+    // FALLBACK: If background geofencing is disabled, handle notifications manually here
+    if (!widget.enableBackground) {
+        _handleForegroundNotification(safe);
+    }
+  }
+
+  Future<void> _handleForegroundNotification(int remaining) async {
+    // Only notify if we haven't notified for this remaining count yet
+    // and if we are within the alert range (<= 3 stops)
+    if (remaining <= 3 && _lastNotified != remaining) {
+      _lastNotified = remaining;
+      
+      String title = "Viagem em Andamento";
+      String body = "";
+      
+      if (remaining == 0) {
+        title = "Você chegou!";
+        body = "Prepare-se para descer no próximo ponto.";
+      } else {
+        body = "Faltam $remaining paradas para o seu destino.";
+      }
+      
+      await _notificationService.showImmediateNotification(
+        id: 12345, 
+        title: title,
+        body: body,
+      );
+    }
   }
 
   /* ================= JS ================= */
