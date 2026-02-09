@@ -307,9 +307,40 @@ map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[routeFeature] })
 }));
 
+// --- STOPS ---
+const stops = $stopsJson;
+const stopFeatures = stops.map(s => {
+  return new ol.Feature({
+    geometry: new ol.geom.Point(ol.proj.fromLonLat([s[0], s[1]]))
+  });
+});
+
+const stopStyle = new ol.style.Style({
+  image: new ol.style.Circle({
+    radius: 5,
+    fill: new ol.style.Fill({ color: '#E0E0E0' }), // Light Gray
+    stroke: new ol.style.Stroke({ color: '#9E9E9E', width: 1 })
+  })
+});
+
+map.addLayer(new ol.layer.Vector({
+  source: new ol.source.Vector({ features: stopFeatures }),
+  style: stopStyle
+}));
+
+// --- USER ---
 window.userFeature = new ol.Feature({
   geometry:new ol.geom.Point(ol.proj.fromLonLat([$lon,$lat]))
 });
+
+const userStyle = new ol.style.Style({
+  image: new ol.style.Circle({
+    radius: 8,
+    fill: new ol.style.Fill({ color: '#0D47A1' }), // Dark Blue
+    stroke: new ol.style.Stroke({ color: '#FFFFFF', width: 2 })
+  })
+});
+userFeature.setStyle(userStyle);
 
 map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[userFeature] })

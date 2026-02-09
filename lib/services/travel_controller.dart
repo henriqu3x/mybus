@@ -4,6 +4,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'geofence_manager.dart';
 
+import 'kml_service.dart';
+
 class TravelController extends ChangeNotifier {
   StreamSubscription<Position>? _positionStream;
   LatLng? currentPosition;
@@ -17,8 +19,8 @@ class TravelController extends ChangeNotifier {
   );
 
   Future<void> startMonitoring({
-    required List<dynamic> sortedStops, 
-    required dynamic destinationStop,
+    required List<StopInfo> sortedStops, 
+    required StopInfo destinationStop,
   }) async {
     // Cancela fluxos anteriores
     stopMonitoring();
