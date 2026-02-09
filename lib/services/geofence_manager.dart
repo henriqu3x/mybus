@@ -6,6 +6,7 @@ import 'package:geofence_service/geofence_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'kml_service.dart';
+import 'notification_channels.dart';
 
 /// ================= BACKGROUND ENTRY POINT =================
 @pragma('vm:entry-point')
@@ -16,6 +17,7 @@ Future<void> onGeofenceStatusChanged(
   Location location,
 ) async {
   if (geofenceStatus == GeofenceStatus.ENTER) {
+    await GeofenceManager.instance._ensureNotificationsReady();
     await GeofenceManager.instance._restoreState(); // Ensure state is loaded
     await GeofenceManager.instance._handleGeofenceEntry(geofence);
   }
@@ -48,6 +50,7 @@ class GeofenceManager {
 
   static const int _windowSize = 3;
   bool _initialized = false;
+  bool _notificationsInitialized = false;
   
   static const String _prefsKeyStops = 'geofence_stops';
   static const String _prefsKeyDestIndex = 'geofence_dest_index';
@@ -58,10 +61,7 @@ class GeofenceManager {
   Future<void> initialize() async {
     if (_initialized) return;
 
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const settings = InitializationSettings(android: androidSettings);
-    await _notifications.initialize(settings);
+    await _ensureNotificationsReady();
 
     _geofenceService.addGeofenceStatusChangeListener(
       onGeofenceStatusChanged,
@@ -72,6 +72,29 @@ class GeofenceManager {
     });
 
     _initialized = true;
+  }
+
+  Future<void> _ensureNotificationsReady() async {
+    if (_notificationsInitialized) return;
+
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const settings = InitializationSettings(android: androidSettings);
+    await _notifications.initialize(settings);
+
+    final androidPlugin =
+        _notifications.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        NotificationChannels.alertsId,
+        NotificationChannels.alertsName,
+        description: NotificationChannels.alertsDescription,
+        importance: Importance.high,
+      ),
+    );
+
+    _notificationsInitialized = true;
   }
 
   // ================= TRIP =================
@@ -179,8 +202,9 @@ class GeofenceManager {
     }
 
     const androidDetails = AndroidNotificationDetails(
-      'mybus_geofence',
-      'Alertas de Parada',
+      NotificationChannels.alertsId,
+      NotificationChannels.alertsName,
+      channelDescription: NotificationChannels.alertsDescription,
       importance: Importance.high,
       priority: Priority.high,
     );

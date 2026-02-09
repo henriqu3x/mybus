@@ -186,10 +186,8 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       setState(() => _remainingStops = safe);
     }
 
-    // Notificações só quando o usuário opta por segundo plano
-    if (widget.enableBackground) {
-      _handleForegroundNotification(safe);
-    }
+    // No modo "só mapa", não enviar notificações
+    // No modo com background, quem notifica é o geofence
   }
 
   void _updateEta(Position pos) {
