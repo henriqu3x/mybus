@@ -186,7 +186,8 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       setState(() => _remainingStops = safe);
     }
 
-    if (!widget.enableBackground) {
+    // Notificações só quando o usuário opta por segundo plano
+    if (widget.enableBackground) {
       _handleForegroundNotification(safe);
     }
   }
@@ -267,6 +268,8 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     final routeJson = jsonEncode(_route);
     final stopsJson =
         jsonEncode(_orderedStops.map((s) => [s.lon, s.lat]).toList());
+    final destLon = widget.destinationStop.lon;
+    final destLat = widget.destinationStop.lat;
 
     final lat = _currentPosition?.latitude ??
         (_route.isNotEmpty ? _route.first[1] : widget.destinationStop.lat);
@@ -286,6 +289,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 <div id="map"></div>
 <script>
 const route = $routeJson;
+const dest = [$destLon, $destLat];
 
 const map = new ol.Map({
   target:'map',
@@ -326,6 +330,22 @@ const stopStyle = new ol.style.Style({
 map.addLayer(new ol.layer.Vector({
   source: new ol.source.Vector({ features: stopFeatures }),
   style: stopStyle
+}));
+
+// --- DESTINATION ---
+const destFeature = new ol.Feature({
+  geometry: new ol.geom.Point(ol.proj.fromLonLat(dest))
+});
+const destStyle = new ol.style.Style({
+  image: new ol.style.Circle({
+    radius: 7,
+    fill: new ol.style.Fill({ color: '#D32F2F' }), // Red
+    stroke: new ol.style.Stroke({ color: '#B71C1C', width: 2 })
+  })
+});
+destFeature.setStyle(destStyle);
+map.addLayer(new ol.layer.Vector({
+  source: new ol.source.Vector({ features: [destFeature] })
 }));
 
 // --- USER ---
