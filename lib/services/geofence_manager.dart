@@ -1,154 +1,182 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:geofence_service/geofence_service.dart';
-import 'package:mybus/services/notification_service.dart'; // Assuming you have this or will implement a simple one here
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-// Top-level function for background execution
+/// ================= BACKGROUND ENTRY POINT =================
 @pragma('vm:entry-point')
-Future<void> _onGeofenceStatusChanged(
-    Geofence geofence,
-    GeofenceRadius geofenceRadius,
-    GeofenceStatus geofenceStatus,
-    Location location) async {
-  
-  print('GeofenceManager: ${geofence.id} status: $geofenceStatus');
-  
+Future<void> onGeofenceStatusChanged(
+  Geofence geofence,
+  GeofenceRadius geofenceRadius,
+  GeofenceStatus geofenceStatus,
+  Location location,
+) async {
   if (geofenceStatus == GeofenceStatus.ENTER) {
-    await GeofenceManager.instance.handleGeofenceEntry(geofence);
+    await GeofenceManager.instance._handleGeofenceEntry(geofence);
   }
 }
 
+/// ================= MANAGER =================
 class GeofenceManager {
-  // Singleton
   static final GeofenceManager instance = GeofenceManager._internal();
   GeofenceManager._internal();
 
-  final _geofenceService = GeofenceService.instance.setup(
+  final FlutterLocalNotificationsPlugin _notifications =
+      FlutterLocalNotificationsPlugin();
+
+  final GeofenceService _geofenceService = GeofenceService.instance.setup(
     interval: 5000,
     accuracy: 100,
-    loiteringDelayMs: 60000,
-    statusChangeDelayMs: 10000,
+    loiteringDelayMs: 0, // ❗ parada de ônibus ≠ permanência
+    statusChangeDelayMs: 5000,
     useActivityRecognition: false,
     allowMockLocations: true,
-    printDevLog: true,
-    geofenceRadiusSortType: GeofenceRadiusSortType.DESC,
+    printDevLog: kDebugMode,
+    geofenceRadiusSortType: GeofenceRadiusSortType.ASC,
   );
 
-  final _notificationPlugin = FlutterLocalNotificationsPlugin();
-  
-  // State
-  List<dynamic> _allStops = [];
+  // ================= STATE =================
+
+  List<dynamic> _stops = [];
   int _destinationIndex = -1;
-  int _currentStopIndex = 0;
-  
-  // Rolling window size
+  int _currentIndex = 0;
+
   static const int _windowSize = 3;
+  bool _initialized = false;
+
+  // ================= INIT =================
 
   Future<void> initialize() async {
-    // Init local notifications for background triggers
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidSettings);
-    await _notificationPlugin.initialize(initSettings);
+    if (_initialized) return;
 
-    _geofenceService.addGeofenceStatusChangeListener(_onGeofenceStatusChanged);
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const settings = InitializationSettings(android: androidSettings);
+    await _notifications.initialize(settings);
+
+    _geofenceService.addGeofenceStatusChangeListener(
+      onGeofenceStatusChanged,
+    );
+
     _geofenceService.addStreamErrorListener((error) {
-      print('GeofenceManager Error: $error');
+      debugPrint('Geofence error: $error');
     });
+
+    _initialized = true;
   }
 
-  Future<void> startTrip(List<dynamic> stops, int destinationIndex) async {
-    _allStops = stops;
+  // ================= TRIP =================
+
+  Future<void> startTrip(
+    List<dynamic> orderedStops,
+    int destinationIndex,
+  ) async {
+    if (orderedStops.isEmpty || destinationIndex < 0) return;
+
+    _stops = orderedStops;
     _destinationIndex = destinationIndex;
-    _currentStopIndex = 0; // Assume start from beginning or find closest?
-    
-    // Logic to find closest monitoring point could be added here, 
-    // but usually we start from where the user selected directly.
-    
+    _currentIndex = 0;
+
     await _geofenceService.start();
-    await _updateGeofences();
+    await _registerWindow();
   }
 
   Future<void> stopTrip() async {
     await _geofenceService.stop();
     _geofenceService.clearGeofenceList();
-    _allStops = [];
+
+    _stops = [];
     _destinationIndex = -1;
+    _currentIndex = 0;
   }
 
-  Future<void> handleGeofenceEntry(Geofence geofence) async {
-    final stopId = geofence.id;
-    final index = _allStops.indexWhere((s) => s.id == stopId);
-    
-    if (index != -1) {
-      _currentStopIndex = index + 1; // Moved past this stop
-      
-      int remaining = _destinationIndex - index;
-      
-      print("GeofenceManager: Passed stop $index. Remaining: $remaining");
+  // ================= CORE =================
 
-      // Critical: Notification Logic
-      // Only notify if 3 or fewer stops remain
-      if (remaining <= 3 && remaining >= 0) {
-        await _sendNotification(remaining);
-      }
-      
-      // Update window
-      await _updateGeofences();
+  Future<void> _handleGeofenceEntry(Geofence geofence) async {
+    final index = _stops.indexWhere((s) => s.id == geofence.id);
+    if (index == -1) return;
+
+    // Proteção contra eventos duplicados
+    if (index < _currentIndex) return;
+
+    _currentIndex = index + 1;
+    final remaining = _destinationIndex - index;
+
+    debugPrint(
+      'Geofence ENTER: ${geofence.id} | Remaining: $remaining',
+    );
+
+    if (remaining <= 3 && remaining >= 0) {
+      await _notify(remaining);
     }
+
+    await _registerWindow();
   }
 
-  Future<void> _updateGeofences() async {
-    if (_allStops.isEmpty || _destinationIndex == -1) return;
+  // ================= WINDOW =================
 
-    final geofenceList = <Geofence>[];
-    
-    // Register next N stops starting from current _currentStopIndex
-    // We only need to geofence UP TO the destination.
-    int endIndex = (_currentStopIndex + _windowSize).clamp(0, _destinationIndex + 1);
-    
-    for (int i = _currentStopIndex; i < endIndex; i++) {
-      // Don't register if we are already past it (check distance?)
-      // For now, simple index logic
-      final stop = _allStops[i];
-      geofenceList.add(Geofence(
-        id: stop.id,
-        latitude: stop.lat,
-        longitude: stop.lon,
-        radius: [
-          GeofenceRadius(id: 'radius_100m', length: 150),
-        ],
-      ));
+  Future<void> _registerWindow() async {
+    if (_stops.isEmpty || _destinationIndex < 0) return;
+
+    final List<Geofence> geofences = [];
+
+    final end = (_currentIndex + _windowSize)
+        .clamp(0, _destinationIndex + 1);
+
+    for (int i = _currentIndex; i < end; i++) {
+      final stop = _stops[i];
+
+      geofences.add(
+        Geofence(
+          id: stop.id,
+          latitude: stop.lat,
+          longitude: stop.lon,
+          radius: [
+            GeofenceRadius(
+              id: '150m',
+              length: 150,
+            ),
+          ],
+        ),
+      );
     }
 
     _geofenceService.clearGeofenceList();
-    if (geofenceList.isNotEmpty) {
-      _geofenceService.addGeofenceList(geofenceList);
-      print("GeofenceManager: Registered ${geofenceList.length} geofences. Next: ${_allStops[_currentStopIndex].name}");
+
+    if (geofences.isNotEmpty) {
+      _geofenceService.addGeofenceList(geofences);
+      debugPrint(
+        'Registered ${geofences.length} geofences. '
+        'Next index: $_currentIndex',
+      );
     }
   }
 
-  Future<void> _sendNotification(int remaining) async {
-    String title = "Viagem em Andamento";
-    String body = "";
-    
+  // ================= NOTIFY =================
+
+  Future<void> _notify(int remaining) async {
+    final String title;
+    final String body;
+
     if (remaining == 0) {
-      title = "Você chegou!";
-      body = "Prepare-se para descer no próximo ponto.";
+      title = 'Você chegou!';
+      body = 'Prepare-se para descer no próximo ponto.';
     } else {
-      body = "Faltam $remaining paradas para o seu destino.";
+      title = 'Viagem em andamento';
+      body = 'Faltam $remaining paradas para o seu destino.';
     }
 
     const androidDetails = AndroidNotificationDetails(
-      'mybus_geofence', 
-      'Geofence Alerts',
+      'mybus_geofence',
+      'Alertas de Parada',
       importance: Importance.high,
       priority: Priority.high,
     );
-    
-    await _notificationPlugin.show(
-      DateTime.now().millisecond, 
-      title, 
-      body, 
+
+    await _notifications.show(
+      DateTime.now().millisecondsSinceEpoch ~/ 1000,
+      title,
+      body,
       const NotificationDetails(android: androidDetails),
     );
   }

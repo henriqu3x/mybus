@@ -8,7 +8,7 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" /> ```
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     
     <application
         android:label="No Ponto - Fortaleza"
@@ -48,6 +48,14 @@
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
             </intent-filter>
         </receiver>
+
+        <service
+        android:name=".LocationForegroundService"
+        android:enabled="true"
+        android:exported="false"
+        android:foregroundServiceType="location" />
+
+
         <service
             android:name="com.baseflow.geolocator.GeolocatorLocationService"
             android:enabled="true"
@@ -55,11 +63,7 @@
             android:foregroundServiceType="location"
         />
         
-        <!-- Geofence Service -->
-        <service
-            android:name="com.pravera.geofence_service.GeofenceBroadcastReceiver"
-            android:exported="true"
-            android:permission="android.permission.BIND_JOB_SERVICE" />
+        
             
         <receiver
             android:name="com.pravera.geofence_service.GeofenceBroadcastReceiver"

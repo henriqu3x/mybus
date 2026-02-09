@@ -10,6 +10,7 @@ import '../services/kml_service.dart';
 import '../services/notification_service.dart';
 import '../services/persistence_service.dart';
 import '../services/geofence_manager.dart';
+import '../services/foreground_service_channel.dart';
 
 class RealTimeTravelScreen extends StatefulWidget {
   final String lineName;
@@ -36,15 +37,20 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;
 
-  List<List<double>> _route = [];
+  final List<List<double>> _route = [];
   List<StopInfo> _orderedStops = [];
+
+  bool _tripInitialized = false;
+  bool _foregroundStarted = false;
+  bool _loading = true;
 
   int _destinationIndex = -1;
   int _currentStopIndex = 0;
   int? _remainingStops;
   int? _lastNotified;
-
-  bool _loading = true;
+  double? _etaMinutes;
+  final List<double> _speedSamples = [];
+  static const int _speedWindow = 6;
 
   /* ================= INIT ================= */
 
@@ -57,19 +63,13 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   }
 
   void _initController() {
-    late final PlatformWebViewControllerCreationParams params;
-
-    params = const PlatformWebViewControllerCreationParams();
-
-    final controller =
-        WebViewController.fromPlatformCreationParams(params);
-
-    if (!kIsWeb) {
-      controller.setJavaScriptMode(JavaScriptMode.unrestricted);
-      controller.setBackgroundColor(const Color(0x00000000));
+    if (kIsWeb) {
+      return;
     }
-
-    _controller = controller;
+    final params = const PlatformWebViewControllerCreationParams();
+    _controller = WebViewController.fromPlatformCreationParams(params)
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0x00000000));
   }
 
   /* ================= DATA ================= */
@@ -80,35 +80,27 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
     for (final seg in segments) {
       for (final c in seg) {
-        _route.add([c[0], c[1]]); // lon, lat
+        _route.add([c[0], c[1]]);
       }
     }
 
     final code = widget.lineName.split(' - ').first.trim();
     final stops = await _kmlService.getStopsForLine(code);
 
-    final indexed =
-        stops.map((s) => MapEntry(s, _closestIndex(s))).toList()
-          ..sort((a, b) => a.value.compareTo(b.value));
+    final indexed = stops.map((s) => MapEntry(s, _closestIndex(s))).toList()
+      ..sort((a, b) => a.value.compareTo(b.value));
 
     _orderedStops = indexed.map((e) => e.key).toList();
-    _destinationIndex = _orderedStops
-        .indexWhere((s) => s.id == widget.destinationStop.id);
 
-    // Call _loadHtml first to ensure UI shows up immediately
+    _destinationIndex = _orderedStops.indexWhere(
+      (s) => s.id == widget.destinationStop.id,
+    );
+
     _loadHtml();
 
-    // Initialize Background Geofencing safely
-    if (widget.enableBackground) {
-      try {
-        await GeofenceManager.instance.initialize();
-        // We don't await the startTrip to avoid blocking anything else if it takes time
-        GeofenceManager.instance.startTrip(_orderedStops, _destinationIndex);
-      } catch (e) {
-        print("Error initializing Geofencing: $e");
-      }
-    } else {
-      print("Geofencing skipped by user choice.");
+    if (widget.enableBackground && _destinationIndex >= 0) {
+      await GeofenceManager.instance.initialize();
+      _tripInitialized = true;
     }
   }
 
@@ -132,6 +124,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 
   Future<void> _startLocationStream() async {
     if (!await Geolocator.isLocationServiceEnabled()) return;
+    if (_positionStream != null) return;
 
     var permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
@@ -144,8 +137,21 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
         accuracy: LocationAccuracy.best,
         distanceFilter: 5,
       ),
-    ).listen((pos) {
+    ).listen((pos) async {
       _currentPosition = pos;
+      _updateEta(pos);
+
+      if (widget.enableBackground &&
+          _tripInitialized &&
+          !_foregroundStarted) {
+        _foregroundStarted = true;
+        await ForegroundServiceChannel.start();
+        await GeofenceManager.instance.startTrip(
+          _orderedStops,
+          _destinationIndex,
+        );
+      }
+
       _updateStopsLogic(pos);
       _updateUserInMap(pos);
     });
@@ -172,77 +178,102 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
     }
 
     _currentStopIndex = closest;
+
     final remaining = _destinationIndex - closest;
     final safe = remaining < 0 ? 0 : remaining;
 
-    setState(() => _remainingStops = safe);
+    if (_remainingStops != safe && mounted) {
+      setState(() => _remainingStops = safe);
+    }
 
-    // Notifications are now handled by GeofenceManager to ensure they work in background/minimized.
-    // We only update the UI state here.
-    
-    // FALLBACK: If background geofencing is disabled, handle notifications manually here
     if (!widget.enableBackground) {
-        _handleForegroundNotification(safe);
+      _handleForegroundNotification(safe);
+    }
+  }
+
+  void _updateEta(Position pos) {
+    if (_destinationIndex < 0 || _destinationIndex >= _orderedStops.length) {
+      if (_etaMinutes != null && mounted) {
+        setState(() => _etaMinutes = null);
+      }
+      return;
+    }
+
+    final dest = _orderedStops[_destinationIndex];
+    final distance = Geolocator.distanceBetween(
+      pos.latitude,
+      pos.longitude,
+      dest.lat,
+      dest.lon,
+    );
+
+    final speed = pos.speed; // m/s
+    if (speed.isFinite && speed > 0.5) {
+      _speedSamples.add(speed);
+      if (_speedSamples.length > _speedWindow) {
+        _speedSamples.removeAt(0);
+      }
+    }
+
+    if (_speedSamples.isEmpty || distance <= 0) {
+      if (_etaMinutes != null && mounted) {
+        setState(() => _etaMinutes = null);
+      }
+      return;
+    }
+
+    final avgSpeed = _speedSamples.reduce((a, b) => a + b) /
+        _speedSamples.length;
+
+    final minutes = (distance / avgSpeed) / 60.0;
+    final clamped = minutes.isFinite && minutes >= 0 ? minutes : 0.0;
+
+    if (mounted) {
+      setState(() => _etaMinutes = clamped);
     }
   }
 
   Future<void> _handleForegroundNotification(int remaining) async {
-    // Only notify if we haven't notified for this remaining count yet
-    // and if we are within the alert range (<= 3 stops)
-    if (remaining <= 3 && _lastNotified != remaining) {
-      _lastNotified = remaining;
-      
-      String title = "Viagem em Andamento";
-      String body = "";
-      
-      if (remaining == 0) {
-        title = "Você chegou!";
-        body = "Prepare-se para descer no próximo ponto.";
-      } else {
-        body = "Faltam $remaining paradas para o seu destino.";
-      }
-      
-      await _notificationService.showImmediateNotification(
-        id: 12345, 
-        title: title,
-        body: body,
-      );
-    }
+    if (remaining > 3 || _lastNotified == remaining) return;
+    _lastNotified = remaining;
+
+    await _notificationService.showImmediateNotification(
+      id: 12345,
+      title: remaining == 0 ? "Você chegou!" : "Viagem em andamento",
+      body: remaining == 0
+          ? "Prepare-se para descer no próximo ponto."
+          : "Faltam $remaining paradas para o seu destino.",
+    );
   }
 
-  /* ================= JS ================= */
+  /* ================= MAP ================= */
 
   void _updateUserInMap(Position pos) {
-    final js = '''
-      if (window.userFeature) {
+    if (kIsWeb) return;
+    _controller.runJavaScript('''
+      if (window.userFeature && window.map) {
         const c = ol.proj.fromLonLat([${pos.longitude}, ${pos.latitude}]);
         userFeature.getGeometry().setCoordinates(c);
-        map.getView().animate({ center: c, duration: 600 });
+        map.getView().animate({ center: c, duration: 500 });
       }
-    ''';
-    _controller.runJavaScript(js);
+    ''');
   }
 
-  /* ================= HTML ================= */
-
   void _loadHtml() {
-    final routeJson = jsonEncode(_route);
-    final stopsList = _orderedStops.map((s) => [s.lon, s.lat]).toList();
-    final stopsJson = jsonEncode(stopsList);
-    final dest = widget.destinationStop;
-
-    double initialLat = dest.lat;
-    double initialLon = dest.lon;
-
-    if (_currentPosition != null) {
-      initialLat = _currentPosition!.latitude;
-      initialLon = _currentPosition!.longitude;
-    } else if (_route.isNotEmpty) {
-      initialLon = _route.first[0];
-      initialLat = _route.first[1];
+    if (kIsWeb) {
+      if (mounted) setState(() => _loading = false);
+      return;
     }
+    final routeJson = jsonEncode(_route);
+    final stopsJson =
+        jsonEncode(_orderedStops.map((s) => [s.lon, s.lat]).toList());
 
-    final html = '''
+    final lat = _currentPosition?.latitude ??
+        (_route.isNotEmpty ? _route.first[1] : widget.destinationStop.lat);
+    final lon = _currentPosition?.longitude ??
+        (_route.isNotEmpty ? _route.first[0] : widget.destinationStop.lon);
+
+    _controller.loadHtmlString('''
 <!DOCTYPE html>
 <html>
 <head>
@@ -255,96 +286,126 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
 <div id="map"></div>
 <script>
 const route = $routeJson;
-const stops = $stopsJson;
 
 const map = new ol.Map({
   target:'map',
   layers:[ new ol.layer.Tile({ source:new ol.source.OSM() }) ],
-  view:new ol.View({ zoom:15 })
+  view:new ol.View({
+    center: ol.proj.fromLonLat([$lon,$lat]),
+    zoom:15
+  })
 });
 
-// Route Line
 const routeFeature = new ol.Feature({
-  geometry: new ol.geom.LineString(route).transform('EPSG:4326','EPSG:3857')
+  geometry:new ol.geom.LineString(route).transform('EPSG:4326','EPSG:3857')
 });
 routeFeature.setStyle(new ol.style.Style({
-  stroke: new ol.style.Stroke({ color:'#1976D2', width:6 })
+  stroke:new ol.style.Stroke({ color:'#1976D2', width:6 })
 }));
+
 map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[routeFeature] })
 }));
 
-// Stops Markers (Grey dots)
-const stopFeatures = stops.map(coord => {
-  const f = new ol.Feature({
-    geometry: new ol.geom.Point(ol.proj.fromLonLat(coord))
-  });
-  f.setStyle(new ol.style.Style({
-    image: new ol.style.Circle({
-      radius: 4,
-      fill: new ol.style.Fill({color:'#757575'}),
-      stroke: new ol.style.Stroke({color:'#fff', width:1})
-    })
-  }));
-  return f;
-});
-map.addLayer(new ol.layer.Vector({
-  source:new ol.source.Vector({ features: stopFeatures })
-}));
-
-// User Marker (Blue Person Icon)
 window.userFeature = new ol.Feature({
-  geometry:new ol.geom.Point(ol.proj.fromLonLat([$initialLon,$initialLat]))
+  geometry:new ol.geom.Point(ol.proj.fromLonLat([$lon,$lat]))
 });
-userFeature.setStyle(new ol.style.Style({
-  image:new ol.style.Icon({
-    anchor: [0.5, 0.5],
-    src: 'https://cdn-icons-png.flaticon.com/512/456/456212.png',
-    color: '#1E88E5',
-    scale: 0.05
-  })
-}));
+
 map.addLayer(new ol.layer.Vector({
   source:new ol.source.Vector({ features:[userFeature] })
 }));
-
-// Destination Marker
-const destFeature = new ol.Feature({
-  geometry:new ol.geom.Point(ol.proj.fromLonLat([${dest.lon},${dest.lat}]))
-});
-destFeature.setStyle(new ol.style.Style({
-  image:new ol.style.Icon({
-    anchor: [0.5, 1],
-    src:'https://cdn-icons-png.flaticon.com/64/684/684908.png',
-    scale:0.4
-  })
-}));
-map.addLayer(new ol.layer.Vector({
-  source:new ol.source.Vector({ features:[destFeature] })
-}));
-
-map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
 </script>
 </body>
 </html>
-''';
+''');
 
-    _controller.loadHtmlString(html);
-    setState(() => _loading = false);
+    if (mounted) setState(() => _loading = false);
+  }
+
+  /* ================= CANCEL ================= */
+
+  Future<void> _endTrip() async {
+    await _positionStream?.cancel();
+    _positionStream = null;
+
+    if (_tripInitialized) {
+      await GeofenceManager.instance.stopTrip();
+      _tripInitialized = false;
+    }
+
+    if (_foregroundStarted) {
+      await ForegroundServiceChannel.stop();
+      _foregroundStarted = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _endTrip();
+    super.dispose();
   }
 
   /* ================= UI ================= */
 
   @override
   Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.lineName),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () async {
+                await _endTrip();
+                await PersistenceService().clearActiveTrip();
+                if (mounted) Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+        body: Stack(
+          children: [
+            const Center(
+              child: Text(
+                'Visualização em tempo real indisponível na versão web.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+            if (_remainingStops != null)
+              Positioned(
+                bottom: 20,
+                left: 20,
+                right: 20,
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Text(
+                      _remainingStops == 0
+                          ? 'Você chegou ao destino'
+                          : 'Faltam $_remainingStops paradas'
+                              '${_etaMinutes == null ? '\nCalculando…' : '\nChegada em ~${_etaMinutes!.ceil()} min'}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.lineName),
         actions: [
           IconButton(
             icon: const Icon(Icons.close),
-            onPressed: _confirmCancel,
-          )
+            onPressed: () async {
+              await _endTrip();
+              await PersistenceService().clearActiveTrip();
+              if (mounted) Navigator.pop(context);
+            },
+          ),
         ],
       ),
       body: Stack(
@@ -358,60 +419,20 @@ map.getView().setCenter(ol.proj.fromLonLat([$initialLon,$initialLat]));
               left: 20,
               right: 20,
               child: Card(
-                elevation: 6,
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Text(
                     _remainingStops == 0
                         ? 'Você chegou ao destino'
-                        : 'Faltam $_remainingStops paradas',
+                        : 'Faltam $_remainingStops paradas'
+                            '${_etaMinutes == null ? '\nCalculando…' : '\nChegada em ~${_etaMinutes!.ceil()} min'}',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
                   ),
                 ),
               ),
-            )
+            ),
         ],
       ),
     );
-  }
-
-  /* ================= CANCEL ================= */
-
-  Future<void> _confirmCancel() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cancelar viagem?'),
-        content: const Text('Isso encerrará o acompanhamento.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Não'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Sim'),
-          ),
-        ],
-      ),
-    );
-
-    if (ok == true) {
-      await _positionStream?.cancel();
-      await GeofenceManager.instance.stopTrip();
-      await PersistenceService().clearActiveTrip();
-      if (mounted) Navigator.pop(context);
-    }
-  }
-
-  @override
-  void dispose() {
-    _positionStream?.cancel();
-    GeofenceManager.instance.stopTrip();
-    super.dispose();
   }
 }

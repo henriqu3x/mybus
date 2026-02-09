@@ -4,19 +4,21 @@ import 'providers/bus_provider.dart';
 import 'screens/splash_screen.dart';
 import 'services/favorites_service.dart';
 import 'services/notification_service.dart';
+import 'services/geofence_manager.dart';
 import 'utils/app_theme.dart';
 
 void main() async {
-  // Ensure Flutter bindings are initialized before using platform channels
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize FavoritesService to fix path_provider plugin
+
+  // Serviços que usam platform channels
   await FavoritesService().init();
-  
-  // Initialize NotificationService and request permissions
+
   await NotificationService().init();
   await NotificationService().requestPermissions();
-  
+
+  // 🔥 ISSO ESTAVA FALTANDO
+  await GeofenceManager.instance.initialize();
+
   runApp(const MyApp());
 }
 
