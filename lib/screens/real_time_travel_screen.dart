@@ -41,7 +41,6 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
   List<StopInfo> _orderedStops = [];
 
   bool _tripInitialized = false;
-  bool _foregroundStarted = false;
   bool _loading = true;
 
   int _destinationIndex = -1;
@@ -141,11 +140,7 @@ class _RealTimeTravelScreenState extends State<RealTimeTravelScreen> {
       _currentPosition = pos;
       _updateEta(pos);
 
-      if (widget.enableBackground &&
-          _tripInitialized &&
-          !_foregroundStarted) {
-        _foregroundStarted = true;
-        await ForegroundServiceChannel.start();
+      if (widget.enableBackground && _tripInitialized) {
         await GeofenceManager.instance.startTrip(
           _orderedStops,
           _destinationIndex,
@@ -382,10 +377,6 @@ map.addLayer(new ol.layer.Vector({
       _tripInitialized = false;
     }
 
-    if (_foregroundStarted) {
-      await ForegroundServiceChannel.stop();
-      _foregroundStarted = false;
-    }
   }
 
   @override
