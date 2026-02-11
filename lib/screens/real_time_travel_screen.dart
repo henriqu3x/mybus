@@ -330,10 +330,10 @@ const destFeature = new ol.Feature({
   geometry: new ol.geom.Point(ol.proj.fromLonLat(dest))
 });
 const destStyle = new ol.style.Style({
-  image: new ol.style.Circle({
-    radius: 7,
-    fill: new ol.style.Fill({ color: '#D32F2F' }), // Red
-    stroke: new ol.style.Stroke({ color: '#B71C1C', width: 2 })
+  image: new ol.style.Icon({
+    anchor: [0.5, 1],
+    src: 'https://cdn-icons-png.flaticon.com/32/684/684908.png',
+    scale: 1.0
   })
 });
 destFeature.setStyle(destStyle);
