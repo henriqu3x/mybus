@@ -11,7 +11,12 @@ class PersistenceService {
   PersistenceService._internal();
 
   /// Saves the current trip details
-  Future<void> saveActiveTrip(String lineName, StopInfo destination) async {
+  Future<void> saveActiveTrip(
+    String lineName,
+    StopInfo destination, {
+    required bool enableNotifications,
+    required bool enableBackground,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     
     final data = {
@@ -22,7 +27,9 @@ class PersistenceService {
         'lat': destination.lat,
         'lon': destination.lon,
         'lines': destination.lines,
-      }
+      },
+      'enableNotifications': enableNotifications,
+      'enableBackground': enableBackground,
     };
     
     await prefs.setString(keyActiveTrip, jsonEncode(data));
@@ -50,6 +57,8 @@ class PersistenceService {
       return {
         'lineName': data['lineName'],
         'destination': destination,
+        'enableNotifications': data['enableNotifications'] == true,
+        'enableBackground': data['enableBackground'] == true,
       };
     } catch (e) {
       return null; // Corrupted data
