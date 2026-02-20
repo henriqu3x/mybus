@@ -17,26 +17,6 @@ class StopInfo {
     required this.lon,
     required this.lines,
   });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'lat': lat,
-      'lon': lon,
-      'lines': lines,
-    };
-  }
-
-  factory StopInfo.fromJson(Map<String, dynamic> json) {
-    return StopInfo(
-      id: json['id'],
-      name: json['name'],
-      lat: json['lat'],
-      lon: json['lon'],
-      lines: List<String>.from(json['lines']),
-    );
-  }
 }
 
 class KmlService {

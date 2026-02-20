@@ -185,10 +185,6 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
         builder: (context) => RealTimeTravelScreen(
           lineName: _currentTripData!['lineName'],
           destinationStop: _currentTripData!['destination'],
-          enableNotifications:
-              _currentTripData!['enableNotifications'] == true,
-          enableBackground:
-              _currentTripData!['enableBackground'] == true,
         ),
       ),
     );
