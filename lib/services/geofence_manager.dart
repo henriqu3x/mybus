@@ -1,12 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'dart:convert';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:geofence_service/geofence_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-
-import 'kml_service.dart';
-import 'notification_channels.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// ================= BACKGROUND ENTRY POINT =================
 @pragma('vm:entry-point')
@@ -17,8 +12,6 @@ Future<void> onGeofenceStatusChanged(
   Location location,
 ) async {
   if (geofenceStatus == GeofenceStatus.ENTER) {
-    await GeofenceManager.instance._ensureNotificationsReady();
-    await GeofenceManager.instance._restoreState(); // Ensure state is loaded
     await GeofenceManager.instance._handleGeofenceEntry(geofence);
   }
 }
@@ -44,24 +37,22 @@ class GeofenceManager {
 
   // ================= STATE =================
 
-  List<StopInfo> _stops = [];
+  List<dynamic> _stops = [];
   int _destinationIndex = -1;
   int _currentIndex = 0;
 
   static const int _windowSize = 3;
   bool _initialized = false;
-  bool _notificationsInitialized = false;
-  
-  static const String _prefsKeyStops = 'geofence_stops';
-  static const String _prefsKeyDestIndex = 'geofence_dest_index';
-  static const String _prefsKeyCurrentIndex = 'geofence_current_index';
 
   // ================= INIT =================
 
   Future<void> initialize() async {
     if (_initialized) return;
 
-    await _ensureNotificationsReady();
+    const androidSettings =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const settings = InitializationSettings(android: androidSettings);
+    await _notifications.initialize(settings);
 
     _geofenceService.addGeofenceStatusChangeListener(
       onGeofenceStatusChanged,
@@ -74,33 +65,10 @@ class GeofenceManager {
     _initialized = true;
   }
 
-  Future<void> _ensureNotificationsReady() async {
-    if (_notificationsInitialized) return;
-
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
-    const settings = InitializationSettings(android: androidSettings);
-    await _notifications.initialize(settings);
-
-    final androidPlugin =
-        _notifications.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        NotificationChannels.alertsId,
-        NotificationChannels.alertsName,
-        description: NotificationChannels.alertsDescription,
-        importance: Importance.high,
-      ),
-    );
-
-    _notificationsInitialized = true;
-  }
-
   // ================= TRIP =================
 
   Future<void> startTrip(
-    List<StopInfo> orderedStops,
+    List<dynamic> orderedStops,
     int destinationIndex,
   ) async {
     if (orderedStops.isEmpty || destinationIndex < 0) return;
@@ -109,7 +77,6 @@ class GeofenceManager {
     _destinationIndex = destinationIndex;
     _currentIndex = 0;
 
-    await _saveState(); // Persist initial state
     await _geofenceService.start();
     await _registerWindow();
   }
@@ -117,7 +84,6 @@ class GeofenceManager {
   Future<void> stopTrip() async {
     await _geofenceService.stop();
     _geofenceService.clearGeofenceList();
-    await _clearState(); // Clear persisted state
 
     _stops = [];
     _destinationIndex = -1;
@@ -127,14 +93,13 @@ class GeofenceManager {
   // ================= CORE =================
 
   Future<void> _handleGeofenceEntry(Geofence geofence) async {
-    final index = _stops.indexWhere((s) => s.id.toString() == geofence.id);
+    final index = _stops.indexWhere((s) => s.id == geofence.id);
     if (index == -1) return;
 
     // Proteção contra eventos duplicados
     if (index < _currentIndex) return;
 
     _currentIndex = index + 1;
-    await _saveProgress(); // Persist progress
     final remaining = _destinationIndex - index;
 
     debugPrint(
@@ -163,7 +128,7 @@ class GeofenceManager {
 
       geofences.add(
         Geofence(
-          id: stop.id.toString(),
+          id: stop.id,
           latitude: stop.lat,
           longitude: stop.lon,
           radius: [
@@ -202,9 +167,8 @@ class GeofenceManager {
     }
 
     const androidDetails = AndroidNotificationDetails(
-      NotificationChannels.alertsId,
-      NotificationChannels.alertsName,
-      channelDescription: NotificationChannels.alertsDescription,
+      'mybus_geofence',
+      'Alertas de Parada',
       importance: Importance.high,
       priority: Priority.high,
     );
@@ -215,55 +179,5 @@ class GeofenceManager {
       body,
       const NotificationDetails(android: androidDetails),
     );
-  }
-
-  // ================= PERSISTENCE =================
-
-  Future<void> _saveState() async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    final stopsJson = jsonEncode(_stops.map((s) => s.toJson()).toList());
-    await prefs.setString(_prefsKeyStops, stopsJson);
-    await prefs.setInt(_prefsKeyDestIndex, _destinationIndex);
-    await prefs.setInt(_prefsKeyCurrentIndex, _currentIndex);
-    
-    debugPrint('GeofenceManager: State saved. Stops: ${_stops.length}, Dest: $_destinationIndex');
-  }
-
-  Future<void> _saveProgress() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_prefsKeyCurrentIndex, _currentIndex);
-    debugPrint('GeofenceManager: Progress saved. Index: $_currentIndex');
-  }
-
-  Future<void> _restoreState() async {
-    // Only restore if empty (prevent overwriting active in-memory state if already loaded)
-    // BUT in background isolate, it starts empty, so this is correct.
-    if (_stops.isNotEmpty) return; 
-
-    final prefs = await SharedPreferences.getInstance();
-    
-    final stopsStr = prefs.getString(_prefsKeyStops);
-    final destIndex = prefs.getInt(_prefsKeyDestIndex);
-    final currIndex = prefs.getInt(_prefsKeyCurrentIndex);
-
-    if (stopsStr != null && destIndex != null) {
-      final List<dynamic> decoded = jsonDecode(stopsStr);
-      _stops = decoded.map((json) => StopInfo.fromJson(json)).toList();
-      _destinationIndex = destIndex;
-      _currentIndex = currIndex ?? 0;
-      
-      debugPrint('GeofenceManager: State restored in isolate. Stops: ${_stops.length}, Index: $_currentIndex');
-    } else {
-      debugPrint('GeofenceManager: No state to restore.');
-    }
-  }
-
-  Future<void> _clearState() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKeyStops);
-    await prefs.remove(_prefsKeyDestIndex);
-    await prefs.remove(_prefsKeyCurrentIndex);
-    debugPrint('GeofenceManager: State cleared.');
   }
 }

@@ -2,17 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/kml_service.dart';
 import '../services/notification_service.dart';
 import '../services/persistence_service.dart';
 import 'real_time_travel_screen.dart';
 
-enum _NotificationMode { disabled, background }
-
 class RealTimeSelectionScreen extends StatefulWidget {
-  const RealTimeSelectionScreen({super.key});
+  const RealTimeSelectionScreen({Key? key}) : super(key: key);
 
   @override
   State<RealTimeSelectionScreen> createState() =>
@@ -20,14 +17,16 @@ class RealTimeSelectionScreen extends StatefulWidget {
 }
 
 class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
-  static const String _askedAlwaysPermissionKey =
-      'rt_trip_asked_always_permission_once';
   final KmlService _kmlService = KmlService();
   final MapController _mapController = MapController();
   final NotificationService _notificationService = NotificationService();
 
+  // ================= DATA =================
+
   List<String> _allLineNames = [];
   List<StopInfo> _stops = [];
+
+  // ================= SELECTION =================
 
   String? _selectedLine;
   StopInfo? _selectedStop;
@@ -35,6 +34,8 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
   bool _isLoadingLines = true;
   bool _isLoadingStops = false;
   bool _showMap = false;
+
+  // ================= INIT =================
 
   @override
   void initState() {
@@ -55,11 +56,13 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingLines = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar linhas: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao carregar linhas: $e')));
     }
   }
+
+  // ================= STOPS =================
 
   Future<void> _loadStopsForLine(String lineName) async {
     setState(() {
@@ -69,6 +72,8 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
       _showMap = true;
     });
 
+    // 🔴 CORREÇÃO CRÍTICA:
+    // getStopsForLine espera o CÓDIGO da linha, não o nome completo
     final String lineCode = lineName.split(' - ').first.trim();
 
     try {
@@ -83,20 +88,19 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
 
       if (_stops.isNotEmpty) {
         Future.delayed(const Duration(milliseconds: 300), () {
-          _mapController.move(
-            LatLng(_stops.first.lat, _stops.first.lon),
-            13,
-          );
+          _mapController.move(LatLng(_stops.first.lat, _stops.first.lon), 13);
         });
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoadingStops = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar paradas: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao carregar paradas: $e')));
     }
   }
+
+  // ================= UI ACTIONS =================
 
   void _onStopTapped(StopInfo stop) {
     setState(() => _selectedStop = stop);
@@ -126,127 +130,111 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
   void _startTravel() {
     if (_selectedLine == null || _selectedStop == null) return;
 
+    // Persistência NÃO bloqueante
+    PersistenceService().saveActiveTrip(_selectedLine!, _selectedStop!);
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('Notificacoes de viagem'),
+        title: const Text('Localização em Segundo Plano'),
         content: const Text(
-          'Deseja ativar notificacoes de aproximacao da sua parada?',
+          'Para notificá-lo quando estiver chegando, o app precisa '
+          'acessar sua localização mesmo quando minimizado.\n\n'
+          'Deseja permitir esse recurso?',
         ),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _navigateToTravel(
-                enableNotifications: false,
-                enableBackground: false,
-              );
+              _navigateToMapOnlyNoNotifications();
             },
-            child: const Text('Nao, apenas usar mapa'),
+            child: const Text('Não, apenas usar mapa'),
           ),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final mode = await _resolveNotificationMode();
+              final ok = await _ensureBackgroundPermissions();
               if (!mounted) return;
-
-              if (mode == _NotificationMode.disabled) {
+              if (!ok) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'Sem permissao de localizacao em segundo plano. Seguindo sem notificacoes.',
-                    ),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Notificacoes ativas via geofence em segundo plano.',
+                      'Permissões insuficientes. Seguindo sem notificações.',
                     ),
                   ),
                 );
               }
-
-              _navigateToTravel(
-                enableNotifications: mode == _NotificationMode.background,
-                enableBackground: mode == _NotificationMode.background,
-              );
+              _navigateToTravel(false);
             },
-            child: const Text('Sim, ativar notificacoes'),
+            child: const Text('Sim, ativar notificações'),
           ),
         ],
       ),
     );
   }
 
-  Future<_NotificationMode> _resolveNotificationMode() async {
-    if (!await Geolocator.isLocationServiceEnabled()) {
-      await Geolocator.openLocationSettings();
-      return _NotificationMode.disabled;
-    }
-
-    var permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-    }
-
-    if (permission == LocationPermission.denied) {
-      return _NotificationMode.disabled;
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      await Geolocator.openAppSettings();
-      return _NotificationMode.disabled;
-    }
-
-    await _notificationService.init();
-    final notifGranted = await _notificationService.requestPermissions();
-    if (!notifGranted) return _NotificationMode.disabled;
-
-    // Try asking for background location only once.
-    // After the first attempt, we do not ask again automatically.
-    if (permission != LocationPermission.always) {
-      final prefs = await SharedPreferences.getInstance();
-      final askedAlways =
-          prefs.getBool(_askedAlwaysPermissionKey) == true;
-
-      if (!askedAlways) {
-        await prefs.setBool(_askedAlwaysPermissionKey, true);
-        permission = await Geolocator.requestPermission();
-      }
-    }
-
-    if (permission == LocationPermission.always) {
-      return _NotificationMode.background;
-    }
-    return _NotificationMode.disabled;
-  }
-
-  void _navigateToTravel({
-    required bool enableNotifications,
-    required bool enableBackground,
-  }) {
-    PersistenceService().saveActiveTrip(
-      _selectedLine!,
-      _selectedStop!,
-      enableNotifications: enableNotifications,
-      enableBackground: enableBackground,
-    );
-
+  void _navigateToTravel(bool enableBackground) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => RealTimeTravelScreen(
           lineName: _selectedLine!,
           destinationStop: _selectedStop!,
-          enableNotifications: enableNotifications,
           enableBackground: enableBackground,
         ),
       ),
     );
   }
+
+  void _navigateToMapOnlyNoNotifications() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => RealTimeTravelScreen(
+          lineName: _selectedLine!,
+          destinationStop: _selectedStop!,
+          enableBackground: false,
+          disableNotifications: true,
+        ),
+      ),
+    );
+  }
+  Future<bool> _ensureBackgroundPermissions() async {
+    // 1️⃣ GPS ligado
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      await Geolocator.openLocationSettings();
+      return false;
+    }
+
+    // 2️⃣ Permissão básica
+    var permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      await Geolocator.openAppSettings();
+      return false;
+    }
+
+    // 3️⃣ Background NÃO pode ser solicitado via requestPermission
+    if (permission != LocationPermission.always) {
+      // ⚠️ aqui deveria haver uma tela explicativa ANTES
+      await Geolocator.openAppSettings();
+      return false;
+    }
+
+    // 4️⃣ Notificação (obrigatória p/ foreground service)
+    await _notificationService.init();
+    final notifGranted = await _notificationService.requestPermissions();
+    if (!notifGranted) return false;
+
+    return true;
+  }
+  // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
@@ -260,7 +248,7 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Qual onibus voce pegou?',
+                  'Qual ônibus você pegou?',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
@@ -278,18 +266,13 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
                       );
                     },
                     onSelected: _loadStopsForLine,
-                    fieldViewBuilder: (
-                      context,
-                      controller,
-                      focusNode,
-                      _,
-                    ) {
+                    fieldViewBuilder: (context, controller, focusNode, _) {
                       return TextField(
                         controller: controller,
                         focusNode: focusNode,
                         decoration: const InputDecoration(
                           border: OutlineInputBorder(),
-                          hintText: 'Ex: 042 - Antonio Bezerra',
+                          hintText: 'Ex: 042 - Antônio Bezerra',
                           prefixIcon: Icon(Icons.search),
                         ),
                       );
@@ -338,16 +321,14 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
                 if (!_showMap)
                   const Center(
                     child: Text(
-                      'Selecione um onibus acima para ver as paradas.',
+                      'Selecione um ônibus acima para ver as paradas.',
                       style: TextStyle(color: Colors.grey),
                     ),
                   ),
                 if (_isLoadingStops)
                   Container(
                     color: Colors.black26,
-                    child: const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    child: const Center(child: CircularProgressIndicator()),
                   ),
               ],
             ),
@@ -357,3 +338,5 @@ class _RealTimeSelectionScreenState extends State<RealTimeSelectionScreen> {
     );
   }
 }
+
+

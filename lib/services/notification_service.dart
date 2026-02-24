@@ -3,8 +3,6 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-import 'notification_channels.dart';
-
 class NotificationService {
   // Singleton
   static final NotificationService _instance =
@@ -49,9 +47,9 @@ class NotificationService {
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
-        NotificationChannels.alertsId,
-        NotificationChannels.alertsName,
-        description: NotificationChannels.alertsDescription,
+        'bus_alerts',
+        'Bus Alerts',
+        description: 'Notifications for bus planning alerts',
         importance: Importance.high,
       ),
     );
@@ -90,9 +88,10 @@ class NotificationService {
       tz.TZDateTime.from(scheduledDate, tz.local),
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          NotificationChannels.alertsId,
-          NotificationChannels.alertsName,
-          channelDescription: NotificationChannels.alertsDescription,
+          'bus_alerts',
+          'Bus Alerts',
+          channelDescription:
+              'Notifications for bus planning alerts',
           importance: Importance.high,
           priority: Priority.high,
         ),
@@ -128,9 +127,9 @@ class NotificationService {
       body,
       const NotificationDetails(
         android: AndroidNotificationDetails(
-          NotificationChannels.alertsId,
-          NotificationChannels.alertsName,
-          channelDescription: NotificationChannels.alertsDescription,
+          'bus_alerts',
+          'Bus Alerts',
+          channelDescription: 'Notifications for bus planning alerts',
           importance: Importance.high,
           priority: Priority.high,
         ),

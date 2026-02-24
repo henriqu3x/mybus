@@ -27,13 +27,7 @@ class LocationForegroundService : Service() {
 
         // NÃO faça lógica pesada aqui
         // Esse service existe apenas para manter o processo vivo
-        return START_NOT_STICKY
-    }
-
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
-        super.onTaskRemoved(rootIntent)
+        return START_STICKY
     }
 
     override fun onDestroy() {
