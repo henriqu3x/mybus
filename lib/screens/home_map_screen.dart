@@ -397,6 +397,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -406,51 +407,33 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           ],
         ),
         actions: [
-          // 1. LINHAS
-          IconButton(
-            icon: const Icon(Icons.list_rounded),
-            tooltip: 'Linhas',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LinesScreen()),
-              );
-            },
-            // 1. Linhas (Direto no App Bar)
-          ),
-          IconButton(
-            icon: const Icon(Icons.location_on_rounded),
-            tooltip: 'Viagem em Tempo Real',
-            onPressed: () {
-              _stopLocationStream();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const RealTimeSelectionScreen(),
-                ),
-              ).then((_) {
-                _checkActiveTrip(autoNav: false);
-                _startLocationStream();
-              });
-            },
-          ),
-          // 2. viagem em tempo real (Direto no App Bar)
-          IconButton(
-            icon: const Icon(Icons.map_rounded),
-            tooltip: 'Planejador',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const RoutePlannerScreen(),
-                ),
-              );
-            },
-          ),
-          // 4. Menu Dropdown (Apenas Favoritos e Alertas)
+          // Menu Dropdown
           PopupMenuButton<String>(
             onSelected: (value) {
-              if (value == 'favorites') {
+              if (value == 'lines') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LinesScreen()),
+                );
+              } else if (value == 'realtime') {
+                _stopLocationStream();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RealTimeSelectionScreen(),
+                  ),
+                ).then((_) {
+                  _checkActiveTrip(autoNav: false);
+                  _startLocationStream();
+                });
+              } else if (value == 'planner') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RoutePlannerScreen(),
+                  ),
+                );
+              } else if (value == 'favorites') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -481,6 +464,37 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
               }
             },
             itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              const PopupMenuItem<String>(
+                value: 'lines',
+                child: Row(
+                  children: [
+                    Icon(Icons.list_rounded),
+                    SizedBox(width: 12),
+                    Text('Linhas'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'realtime',
+                child: Row(
+                  children: [
+                    Icon(Icons.location_on_rounded),
+                    SizedBox(width: 12),
+                    Text('Viagem em Tempo Real'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'planner',
+                child: Row(
+                  children: [
+                    Icon(Icons.map_rounded),
+                    SizedBox(width: 12),
+                    Text('Planejador'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
               const PopupMenuItem<String>(
                 value: 'favorites',
                 child: Row(
