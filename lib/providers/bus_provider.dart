@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import '../models/linha.dart';
-import '../models/itinerario.dart';
+
 import '../models/horario.dart';
+import '../models/itinerario.dart';
+import '../models/linha.dart';
 import '../models/logradouro.dart';
 import '../services/api_service.dart';
-import '../services/storage_service.dart';
+import '../services/graph_cache_service.dart';
 import '../utils/graph_utils.dart';
 import '../utils/time_utils.dart';
 
 class BusProvider with ChangeNotifier {
   final ApiService _apiService = ApiService();
+  final GraphCacheService _graphCacheService = GraphCacheService();
 
   List<Linha> _linhas = [];
   List<Linha> _filteredLinhas = [];
   List<Logradouro> _logradouros = [];
-  
+
   bool _isLoading = false;
   String? _error;
 
-  // Cache for itineraries to build graph
   final Map<int, ItinerarioCompleto> _itinerarioCache = {};
   TransportGraph? _graph;
   bool _isGraphBuilding = false;
@@ -32,26 +33,27 @@ class BusProvider with ChangeNotifier {
 
   Future<void>? _linesLoadingFuture;
 
+  void _setError(String message, [Object? error]) {
+    _error = message;
+    debugPrint('$message${error != null ? ' | $error' : ''}');
+  }
+
   Future<void> fetchLinhas({bool forceRefresh = false}) async {
-    // If loading is already in progress, return the existing future
     if (_linesLoadingFuture != null) {
       return _linesLoadingFuture;
     }
 
-    // If data exists and we are not forcing refresh, return immediately
     if (_linhas.isNotEmpty && !forceRefresh) return;
-    
+
     _isLoading = true;
     _error = null;
     notifyListeners();
 
-    // Create a new future and assign it
     _linesLoadingFuture = _fetchLinhasInternal();
-    
+
     try {
       await _linesLoadingFuture;
     } finally {
-      // Clear the future when done so next call can refresh if needed
       _linesLoadingFuture = null;
       _isLoading = false;
       notifyListeners();
@@ -63,7 +65,12 @@ class BusProvider with ChangeNotifier {
       _linhas = await _apiService.getLinhas();
       _filteredLinhas = _linhas;
     } catch (e) {
-      _error = 'Erro ao carregar linhas. Verifique sua conexão.';
+      _linhas = [];
+      _filteredLinhas = [];
+      _setError(
+        'Erro ao carregar linhas. Verifique sua conexao e tente novamente.',
+        e,
+      );
     }
   }
 
@@ -83,14 +90,14 @@ class BusProvider with ChangeNotifier {
     try {
       final num = int.tryParse(number);
       if (num == null) return null;
-      
+
       return _linhas.firstWhere(
         (l) => l.numero == num,
         orElse: () => Linha(
-            numero: num, 
-            nome: 'Linha $number', 
-            numeroNome: 'Linha $number', 
-            tipoLinha: ''
+          numero: num,
+          nome: 'Linha $number',
+          numeroNome: 'Linha $number',
+          tipoLinha: '',
         ),
       );
     } catch (e) {
@@ -112,32 +119,59 @@ class BusProvider with ChangeNotifier {
   }
 
   Future<void> fetchLogradouros() async {
-    try {
-      _logradouros = await _apiService.getLogradouros();
-      notifyListeners();
-    } catch (e) {
-    }
-  }
-
-  Future<void> buildGraph() async {
-    if (_isGraphBuilding || _graph != null) return;
-    _isGraphBuilding = true;
+    _isLoading = true;
+    _error = null;
     notifyListeners();
 
     try {
+      _logradouros = await _apiService.getLogradouros();
+    } catch (e) {
+      _logradouros = [];
+      _setError(
+        'Erro ao carregar logradouros. Verifique sua conexao e tente novamente.',
+        e,
+      );
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> buildGraph({bool forceRebuild = false}) async {
+    if (_isGraphBuilding) return;
+    if (_graph != null && !forceRebuild) return;
+
+    if (forceRebuild) {
+      _graph = null;
+    }
+
+    _isGraphBuilding = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      if (!forceRebuild) {
+        final cachedGraph = await _graphCacheService.loadGraphIfFresh();
+        if (cachedGraph != null) {
+          _graph = cachedGraph;
+          return;
+        }
+      } else {
+        await _graphCacheService.clearInvalidCache();
+      }
+
       if (_linhas.isEmpty) {
         await fetchLinhas();
       }
 
-      // Get current date in YYYYMMDD format
       final now = DateTime.now();
       final dateStr =
-          "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 
       List<Map<String, dynamic>> allItineraries = [];
+      int failedLines = 0;
 
-      // Process in batches to avoid overwhelming the server but still be faster than sequential
-      int batchSize = 5;
+      const batchSize = 5;
       for (var i = 0; i < _linhas.length; i += batchSize) {
         var end = (i + batchSize < _linhas.length)
             ? i + batchSize
@@ -147,18 +181,20 @@ class BusProvider with ChangeNotifier {
         await Future.wait(
           batch.map((linha) async {
             try {
-              // Check schedule
               bool isActive = false;
               try {
                 final horarios = await getHorarios(linha.numero, dateStr);
                 if (horarios.isNotEmpty) isActive = true;
               } catch (e) {
-                // Ignore error, treat as inactive
+                failedLines++;
+                debugPrint(
+                  'Erro ao carregar horarios da linha ${linha.numero}: $e',
+                );
               }
 
               if (isActive) {
-                var itinerarioCompleto = await getItinerario(linha.numero);
-                  if (itinerarioCompleto.ida != null) {
+                final itinerarioCompleto = await getItinerario(linha.numero);
+                if (itinerarioCompleto.ida != null) {
                   allItineraries.add({
                     'line': '${linha.numeroNome.trim()}_IDA',
                     'itinerario': itinerarioCompleto.ida,
@@ -172,231 +208,242 @@ class BusProvider with ChangeNotifier {
                 }
               }
             } catch (e) {
+              failedLines++;
+              debugPrint(
+                'Erro ao montar itinerario da linha ${linha.numero}: $e',
+              );
             }
           }),
         );
       }
 
+      if (allItineraries.isEmpty) {
+        _graph = null;
+        _setError(
+          failedLines > 0
+              ? 'Nao foi possivel carregar dados suficientes para planejar a viagem.'
+              : 'Nenhum itinerario ativo foi encontrado para montar a rede de transporte.',
+        );
+        return;
+      }
+
       _graph = TransportGraph();
       _graph!.buildFromItineraries(allItineraries);
+      _error = null;
+
+      try {
+        await _graphCacheService.saveGraphForToday(_graph!);
+      } catch (e) {
+        debugPrint('Nao foi possivel persistir o cache do grafo: $e');
+      }
     } catch (e) {
+      _graph = null;
+      _setError(
+        'Erro ao construir a rede de transporte. Tente novamente em instantes.',
+        e,
+      );
     } finally {
       _isGraphBuilding = false;
       notifyListeners();
     }
   }
 
-  /// Finds up to 3 distinct routes between start and end.
   Future<List<List<GraphEdge>>> findRoutes(int startLogId, int endLogId) async {
     final List<List<GraphEdge>> foundRoutes = [];
     if (_graph == null) return foundRoutes;
 
-    final Map<String, int> initialWaitTimes = await _calculateInitialWaitTimes(startLogId); // Refactored helper
+    final Map<String, int> initialWaitTimes = await _calculateInitialWaitTimes(
+      startLogId,
+    );
     final Set<String> penalizedLines = {};
 
-    // Try to find up to 3 routes
     for (int i = 0; i < 3; i++) {
-        final route = await _findSingleValidRoute(
-            startLogId, 
-            endLogId, 
-            initialWaitTimes,
-            penalizedLines: penalizedLines // Pass cached penalties
+      final route = await _findSingleValidRoute(
+        startLogId,
+        endLogId,
+        initialWaitTimes,
+        penalizedLines: penalizedLines,
+      );
+
+      if (route != null) {
+        final routeStr = route.map((e) => e.lineName).join(',');
+        final isDuplicate = foundRoutes.any(
+          (r) => r.map((e) => e.lineName).join(',') == routeStr,
         );
 
-        if (route != null) {
-            // Check if this route is significantly different or new?
-            // For now, assume penalties make it different enough.
-            // But we should check for duplicates in IDs/Structure if needed.
-             // Simple duplicate check based on string representation of lines
-            final routeStr = route.map((e) => e.lineName).join(',');
-            final isDuplicate = foundRoutes.any((r) => r.map((e) => e.lineName).join(',') == routeStr);
-
-            if (!isDuplicate) {
-                foundRoutes.add(route);
-
-                // Add lines from this route to penalized set to encourage variety
-                for (final edge in route) {
-                    penalizedLines.add(edge.lineName);
-                }
-            } else {
-                // If we found a duplicate, maybe stop or try harder? 
-                // If current penalty resulted in same route, stop trying.
-                break;
-            }
+        if (!isDuplicate) {
+          foundRoutes.add(route);
+          for (final edge in route) {
+            penalizedLines.add(edge.lineName);
+          }
         } else {
-            // No more routes found
-            break;
+          break;
         }
+      } else {
+        break;
+      }
     }
-    
+
     return foundRoutes;
   }
 
-  // Refactored from previous big method
   Future<List<GraphEdge>?> _findSingleValidRoute(
-      int startLogId, 
-      int endLogId, 
-      Map<String, int> initialWaitTimes,
-      {Set<String>? penalizedLines}
-  ) async {
-     // Iterative validation: find route, validate all segments, exclude bad lines, retry
-    final Set<String> excludedLines = {}; // Hard exclude for invalid schedules
+    int startLogId,
+    int endLogId,
+    Map<String, int> initialWaitTimes, {
+    Set<String>? penalizedLines,
+  }) async {
+    final Set<String> excludedLines = {};
     int attempts = 0;
     const maxAttempts = 5;
-    
+
     final today = DateTime.now();
-    final dateStr = "${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}";
+    final dateStr =
+        '${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}';
     final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
-    
+
     while (attempts < maxAttempts) {
       var route = _graph!.findShortestPath(
-        startLogId, 
-        endLogId, 
+        startLogId,
+        endLogId,
         initialWaitTimes: initialWaitTimes,
         excludedLines: excludedLines,
         penalizedLines: penalizedLines,
       );
-      
+
       if (route == null || route.isEmpty) {
         return null;
       }
-      
-      // Validate all segments of the route
-      final invalidLine = await _validateRouteSegments(route, currentMinutes, dateStr);
-      
+
+      final invalidLine = await _validateRouteSegments(
+        route,
+        currentMinutes,
+        dateStr,
+      );
+
       if (invalidLine == null) {
         return route;
       }
-      
-      // Route has invalid segment, exclude that line and retry
+
       excludedLines.add(invalidLine);
       attempts++;
     }
-    
+
     return null;
   }
 
-  // Helper method extracted from original code to reuse in findRoutes
-  // Need to implement this helper as it wasn't separate before
   Future<Map<String, int>> _calculateInitialWaitTimes(int startLogId) async {
     final Map<String, int> initialWaitTimes = {};
     final today = DateTime.now();
-    final dateStr = "${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}";
+    final dateStr =
+        '${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}';
     final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
 
-      for (var linha in _linhas) {
-        if (!_itinerarioCache.containsKey(linha.numero)) continue;
-        
-        final itinerarioCompleto = _itinerarioCache[linha.numero]!;
+    for (var linha in _linhas) {
+      if (!_itinerarioCache.containsKey(linha.numero)) continue;
 
-        // Check Ida
-        if (itinerarioCompleto.ida != null) {
-           double dist = 0;
-           bool found = false;
-           for (var p in itinerarioCompleto.ida!.pontos) {
-             if (p.logId == startLogId) {
-               found = true;
-               break;
-             }
-             dist += p.distanciaPercorrida;
-           }
-           
-           if (found) {
-             final wait = await _calculateNextBusWaitTime(
-               linha.numero, 
-               dateStr, 
-               itinerarioCompleto.ida!.pontoInicial, 
-               dist, 
-               currentMinutes
-             );
-             final key = '${linha.numeroNome.trim()}_IDA';
-             if (wait != null) {
-               if (wait > 45) {
-                 initialWaitTimes[key] = 999999;
-               } else {
-                 initialWaitTimes[key] = wait;
-               }
-             } else {
-               initialWaitTimes[key] = 999999;
-             }
-           }
+      final itinerarioCompleto = _itinerarioCache[linha.numero]!;
+
+      if (itinerarioCompleto.ida != null) {
+        double dist = 0;
+        bool found = false;
+        for (var p in itinerarioCompleto.ida!.pontos) {
+          if (p.logId == startLogId) {
+            found = true;
+            break;
+          }
+          dist += p.distanciaPercorrida;
         }
 
-        // Check Volta
-        if (itinerarioCompleto.volta != null) {
-           double dist = 0;
-           bool found = false;
-           for (var p in itinerarioCompleto.volta!.pontos) {
-             if (p.logId == startLogId) {
-               found = true;
-               break;
-             }
-             dist += p.distanciaPercorrida;
-           }
-           
-           if (found) {
-             final wait = await _calculateNextBusWaitTime(
-               linha.numero, 
-               dateStr, 
-               itinerarioCompleto.volta!.pontoInicial, 
-               dist, 
-               currentMinutes
-             );
-             final key = '${linha.numeroNome.trim()}_VOLTA';
-             if (wait != null) {
-               if (wait > 45) {
-                 initialWaitTimes[key] = 999999;
-               } else {
-                 initialWaitTimes[key] = wait;
-               }
-             } else {
-               initialWaitTimes[key] = 999999;
-             }
-           }
+        if (found) {
+          final wait = await _calculateNextBusWaitTime(
+            linha.numero,
+            dateStr,
+            itinerarioCompleto.ida!.pontoInicial,
+            dist,
+            currentMinutes,
+          );
+          final key = '${linha.numeroNome.trim()}_IDA';
+          if (wait != null) {
+            if (wait > 45) {
+              initialWaitTimes[key] = 999999;
+            } else {
+              initialWaitTimes[key] = wait;
+            }
+          } else {
+            initialWaitTimes[key] = 999999;
+          }
         }
       }
-      return initialWaitTimes;
+
+      if (itinerarioCompleto.volta != null) {
+        double dist = 0;
+        bool found = false;
+        for (var p in itinerarioCompleto.volta!.pontos) {
+          if (p.logId == startLogId) {
+            found = true;
+            break;
+          }
+          dist += p.distanciaPercorrida;
+        }
+
+        if (found) {
+          final wait = await _calculateNextBusWaitTime(
+            linha.numero,
+            dateStr,
+            itinerarioCompleto.volta!.pontoInicial,
+            dist,
+            currentMinutes,
+          );
+          final key = '${linha.numeroNome.trim()}_VOLTA';
+          if (wait != null) {
+            if (wait > 45) {
+              initialWaitTimes[key] = 999999;
+            } else {
+              initialWaitTimes[key] = wait;
+            }
+          } else {
+            initialWaitTimes[key] = 999999;
+          }
+        }
+      }
+    }
+    return initialWaitTimes;
   }
 
-  /// Validates all segments of a route by simulating the journey timeline.
-  /// Returns the line name that failed validation, or null if route is valid.
   Future<String?> _validateRouteSegments(
-    List<GraphEdge> route, 
+    List<GraphEdge> route,
     int startMinutes,
     String dateStr,
   ) async {
     int currentMinutes = startMinutes;
     String? previousLine;
-    
+
     for (int i = 0; i < route.length; i++) {
       final edge = route[i];
-      
-      // Check if this is a transfer (new line)
+
       if (edge.lineName != previousLine) {
-        // Extract line number from name like "051-Name_IDA"
-        String lineNameClean = edge.lineName.replaceAll('_IDA', '').replaceAll('_VOLTA', '').trim();
+        String lineNameClean = edge.lineName
+            .replaceAll('_IDA', '')
+            .replaceAll('_VOLTA', '')
+            .trim();
         final match = RegExp(r'^(\d+)').firstMatch(lineNameClean);
         if (match == null) continue;
-        
+
         int lineNum = int.parse(match.group(1)!);
-        
-        // Get the boarding stop ID
-        // For first segment (i==0), we already validated via initialWaitTimes
-        // For transfers (i>0), boarding happens at previous edge's destination
+
         if (i > 0) {
           int boardingStopId = route[i - 1].destination.id;
-          
-          // Get itinerary to find this stop
+
           var itinerarioCompleto = await getItinerario(lineNum);
-          var itinerario = edge.lineName.endsWith('_VOLTA') 
-              ? itinerarioCompleto.volta 
+          var itinerario = edge.lineName.endsWith('_VOLTA')
+              ? itinerarioCompleto.volta
               : itinerarioCompleto.ida;
-          
+
           if (itinerario == null) {
-            return edge.lineName; // No itinerary = invalid
+            return edge.lineName;
           }
-          
-          // Find the boarding stop in the itinerary and calculate distance
+
           double dist = 0;
           bool found = false;
           for (var p in itinerario.pontos) {
@@ -406,12 +453,11 @@ class BusProvider with ChangeNotifier {
             }
             dist += p.distanciaPercorrida;
           }
-          
+
           if (!found) {
-            return edge.lineName; // Stop not in itinerary = invalid
+            return edge.lineName;
           }
-          
-          // Calculate wait time at this transfer point
+
           final waitMinutes = await _calculateNextBusWaitTime(
             lineNum,
             dateStr,
@@ -419,37 +465,34 @@ class BusProvider with ChangeNotifier {
             dist,
             currentMinutes,
           );
-          
+
           if (waitMinutes == null || waitMinutes > 45) {
-            return edge.lineName; // No bus or wait > 45min = invalid
+            return edge.lineName;
           }
-          
-          // Add wait time to current time
+
           currentMinutes += waitMinutes;
         }
       }
-      
-      // Add travel time for this segment
+
       int travelMinutes = TimeUtils.calculateTravelTimeMinutes(edge.weight);
       currentMinutes += travelMinutes;
-      
+
       previousLine = edge.lineName;
     }
-    
-    return null; // All segments valid
+
+    return null;
   }
 
   Future<int?> _calculateNextBusWaitTime(
-    int linhaId, 
-    String date, 
-    String pontoInicial, 
-    double distanceToStop, 
-    int currentMinutes
+    int linhaId,
+    String date,
+    String pontoInicial,
+    double distanceToStop,
+    int currentMinutes,
   ) async {
     try {
       final horarios = await getHorarios(linhaId, date);
-      
-      // Find matching control point
+
       HorarioPosto? matchingPosto;
       for (var posto in horarios) {
         if (_areNamesSimilar(posto.postoControle, pontoInicial)) {
@@ -457,37 +500,42 @@ class BusProvider with ChangeNotifier {
           break;
         }
       }
-      
+
       if (matchingPosto == null && horarios.isNotEmpty) {
-         // Fallback if only one exists
-         if (horarios.length == 1) matchingPosto = horarios.first;
+        if (horarios.length == 1) matchingPosto = horarios.first;
       }
 
       if (matchingPosto == null) return null;
 
       final travelMinutes = TimeUtils.calculateTravelTimeMinutes(distanceToStop);
-      
+
       int? bestArrival;
-      
+
       for (var h in matchingPosto.horarios) {
         try {
           final parts = h.horario.split(':');
-          final departureMinutes = int.parse(parts[0]) * 60 + int.parse(parts[1]);
+          final departureMinutes =
+              int.parse(parts[0]) * 60 + int.parse(parts[1]);
           final arrivalMinutes = departureMinutes + travelMinutes;
-          
+
           if (arrivalMinutes > currentMinutes) {
             bestArrival = arrivalMinutes;
-            break; // Sorted usually, so first one is next
+            break;
           }
         } catch (e) {
-          // ignore
+          debugPrint(
+            'Horario invalido na linha $linhaId: ${h.horario} | $e',
+          );
         }
       }
-      
+
       if (bestArrival != null) {
         return bestArrival - currentMinutes;
       }
     } catch (e) {
+      debugPrint(
+        'Erro ao calcular proximo horario da linha $linhaId em $pontoInicial: $e',
+      );
     }
     return null;
   }
@@ -495,46 +543,48 @@ class BusProvider with ChangeNotifier {
   bool _areNamesSimilar(String name1, String name2) {
     final n1 = _normalizeName(name1);
     final n2 = _normalizeName(name2);
-    
+
     if (n1.contains(n2) || n2.contains(n1)) return true;
-    
+
     final words1 = n1.split(' ').where((w) => w.length > 2).toSet();
     final words2 = n2.split(' ').where((w) => w.length > 2).toSet();
-    
+
     if (words1.isEmpty || words2.isEmpty) return false;
-    
+
     final intersection = words1.intersection(words2);
-    return intersection.length >= words1.length * 0.6 || 
-           intersection.length >= words2.length * 0.6;
+    return intersection.length >= words1.length * 0.6 ||
+        intersection.length >= words2.length * 0.6;
   }
 
   String _normalizeName(String name) {
     return name.toLowerCase()
         .replaceAll(RegExp(r'^\d+-'), '')
-        .replaceAll(RegExp(r'[áàâãä]'), 'a')
-        .replaceAll(RegExp(r'[éèêë]'), 'e')
-        .replaceAll(RegExp(r'[íìîï]'), 'i')
-        .replaceAll(RegExp(r'[óòôõö]'), 'o')
-        .replaceAll(RegExp(r'[úùûü]'), 'u')
-        .replaceAll(RegExp(r'[ç]'), 'c')
+        .replaceAll(RegExp(r'[Ã¡Ã Ã¢Ã£Ã¤]'), 'a')
+        .replaceAll(RegExp(r'[Ã©Ã¨ÃªÃ«]'), 'e')
+        .replaceAll(RegExp(r'[Ã­Ã¬Ã®Ã¯]'), 'i')
+        .replaceAll(RegExp(r'[Ã³Ã²Ã´ÃµÃ¶]'), 'o')
+        .replaceAll(RegExp(r'[ÃºÃ¹Ã»Ã¼]'), 'u')
+        .replaceAll(RegExp(r'[Ã§]'), 'c')
         .replaceAll(RegExp(r'\b(de|da|do|dos|das|e|o|a)\b'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 
-  Future<int?> getPredictedArrivalForStreet(int lineId, String streetName) async {
+  Future<int?> getPredictedArrivalForStreet(
+    int lineId,
+    String streetName,
+  ) async {
     try {
       final itinerarioCompleto = await getItinerario(lineId);
       final now = DateTime.now();
-      final dateStr = "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}";
+      final dateStr =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
       final horarios = await getHorarios(lineId, dateStr);
       final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
 
-      // Check both directions
       for (var itinerario in [itinerarioCompleto.ida, itinerarioCompleto.volta]) {
         if (itinerario == null) continue;
 
-        // Find the point matching the street
         double cumulativeDist = 0;
         bool found = false;
         for (var ponto in itinerario.pontos) {
@@ -547,7 +597,6 @@ class BusProvider with ChangeNotifier {
 
         if (!found) continue;
 
-        // Find matching HorarioPosto
         HorarioPosto? matchingPosto;
         for (var posto in horarios) {
           if (_areNamesSimilar(posto.postoControle, itinerario.pontoInicial)) {
@@ -560,7 +609,6 @@ class BusProvider with ChangeNotifier {
         }
         if (matchingPosto == null) continue;
 
-        // Collect departure minutes
         List<int> allDepartureMinutes = [];
         for (var h in matchingPosto.horarios) {
           try {
@@ -568,15 +616,17 @@ class BusProvider with ChangeNotifier {
             final mins = int.parse(parts[0]) * 60 + int.parse(parts[1]);
             allDepartureMinutes.add(mins);
           } catch (e) {
-            // ignore
+            debugPrint(
+              'Horario invalido encontrado para a linha $lineId: ${h.horario} | $e',
+            );
           }
         }
         allDepartureMinutes.sort();
 
-        // Calculate travel time
-        final travelMinutes = TimeUtils.calculateTravelTimeMinutes(cumulativeDist);
+        final travelMinutes = TimeUtils.calculateTravelTimeMinutes(
+          cumulativeDist,
+        );
 
-        // Find next arrival
         for (var depMins in allDepartureMinutes) {
           final arrivalMins = depMins + travelMinutes;
           if (arrivalMins > currentMinutes) {
@@ -585,6 +635,10 @@ class BusProvider with ChangeNotifier {
         }
       }
     } catch (e) {
+      _setError(
+        'Erro ao prever chegada da linha. Verifique sua conexao e tente novamente.',
+        e,
+      );
     }
     return null;
   }

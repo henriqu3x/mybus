@@ -12,6 +12,14 @@ class GraphNode {
 
   @override
   int get hashCode => id.hashCode;
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'name': name};
+  }
+
+  factory GraphNode.fromJson(Map<String, dynamic> json) {
+    return GraphNode(json['id'] as int, json['name'] as String? ?? '');
+  }
 }
 
 class GraphEdge {
@@ -20,11 +28,92 @@ class GraphEdge {
   final String lineName; // Which bus line covers this edge
 
   GraphEdge(this.destination, this.weight, this.lineName);
+
+  Map<String, dynamic> toJson() {
+    return {
+      'destinationId': destination.id,
+      'weight': weight,
+      'lineName': lineName,
+    };
+  }
 }
 
 class TransportGraph {
   final Map<int, GraphNode> nodes = {};
   final Map<int, List<GraphEdge>> adjacencyList = {};
+
+  TransportGraph();
+
+  Map<String, dynamic> toJson() {
+    return {
+      'nodes': nodes.map(
+        (id, node) => MapEntry(id.toString(), node.toJson()),
+      ),
+      'adjacencyList': adjacencyList.map(
+        (fromId, edges) => MapEntry(
+          fromId.toString(),
+          edges.map((edge) => edge.toJson()).toList(),
+        ),
+      ),
+    };
+  }
+
+  factory TransportGraph.fromJson(Map<String, dynamic> json) {
+    final rawNodes = json['nodes'];
+    final rawAdjacency = json['adjacencyList'];
+
+    if (rawNodes is! Map || rawAdjacency is! Map) {
+      throw const FormatException('Invalid transport graph payload.');
+    }
+
+    final graph = TransportGraph();
+
+    for (final entry in rawNodes.entries) {
+      final id = int.tryParse(entry.key.toString());
+      final value = entry.value;
+      if (id == null || value is! Map<String, dynamic>) {
+        throw const FormatException('Invalid node entry in graph payload.');
+      }
+      final node = GraphNode.fromJson(value);
+      graph.nodes[id] = node;
+      graph.adjacencyList[id] = [];
+    }
+
+    for (final entry in rawAdjacency.entries) {
+      final fromId = int.tryParse(entry.key.toString());
+      final value = entry.value;
+      if (fromId == null || value is! List) {
+        throw const FormatException('Invalid adjacency entry in graph payload.');
+      }
+
+      final edges = <GraphEdge>[];
+      for (final rawEdge in value) {
+        if (rawEdge is! Map<String, dynamic>) {
+          throw const FormatException('Invalid graph edge payload.');
+        }
+
+        final destinationId = rawEdge['destinationId'] as int?;
+        final weightValue = rawEdge['weight'];
+        final lineName = rawEdge['lineName'] as String?;
+        final destination = destinationId != null
+            ? graph.nodes[destinationId]
+            : null;
+
+        if (destination == null ||
+            weightValue is! num ||
+            lineName == null ||
+            !graph.nodes.containsKey(fromId)) {
+          throw const FormatException('Graph edge references invalid nodes.');
+        }
+
+        edges.add(GraphEdge(destination, weightValue.toDouble(), lineName));
+      }
+
+      graph.adjacencyList[fromId] = edges;
+    }
+
+    return graph;
+  }
 
   void addNode(int id, String name) {
     if (!nodes.containsKey(id)) {

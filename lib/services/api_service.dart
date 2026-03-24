@@ -1,15 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
+
 import 'package:http/http.dart' as http;
-import '../models/linha.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import '../models/linha.dart';
-import '../models/itinerario.dart';
+
 import '../models/horario.dart';
+import '../models/itinerario.dart';
+import '../models/linha.dart';
 import '../models/logradouro.dart';
 
 class ApiService {
   static const String baseUrl = 'http://gistapis.etufor.ce.gov.br:8081/api';
+  static const Duration _requestTimeout = Duration(seconds: 10);
 
   // Simple in-memory cache
   final Map<String, dynamic> _cache = {};
@@ -19,14 +20,24 @@ class ApiService {
       return _cache[endpoint];
     }
 
-    final response = await http.get(Uri.parse('$baseUrl$endpoint'));
+    try {
+      final response = await http
+          .get(Uri.parse('$baseUrl$endpoint'))
+          .timeout(_requestTimeout);
 
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      _cache[endpoint] = data;
-      return data;
-    } else {
-      throw Exception('Failed to load data from $endpoint');
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        _cache[endpoint] = data;
+        return data;
+      }
+
+      throw Exception('ETUFOR retornou status ${response.statusCode}.');
+    } on TimeoutException {
+      throw Exception(
+        'A consulta a ETUFOR demorou mais de 10 segundos e expirou.',
+      );
+    } catch (e) {
+      throw Exception('Falha ao carregar dados de $endpoint: $e');
     }
   }
 

@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:http/http.dart' as http;
 
 class NominatimService {
+  static const Duration _requestTimeout = Duration(seconds: 10);
   
   // Função de limpeza OTIMIZADA para corrigir nomes invertidos da API
   static String _cleanStreetName(String rawName) {
@@ -69,7 +72,7 @@ class NominatimService {
     try {
       final response = await http.get(url, headers: {
         'User-Agent': 'MyBusApp/1.0 (seu-email-aqui@exemplo.com)' // Mantenha seu User-Agent real
-      });
+      }).timeout(_requestTimeout);
       
       if (response.statusCode == 200) {
         final List data = json.decode(response.body);
@@ -81,9 +84,15 @@ class NominatimService {
             return LatLng(lat, lon);
           }
         }
+      } else {
+        throw Exception('Nominatim retornou status ${response.statusCode}.');
       }
+    } on TimeoutException {
+      throw Exception(
+        'A consulta ao Nominatim demorou mais de 10 segundos e expirou.',
+      );
     } catch (e) {
-      print('Erro na busca Nominatim para "$query": $e');
+      throw Exception('Erro na busca Nominatim para "$query": $e');
     }
     return null;
   }

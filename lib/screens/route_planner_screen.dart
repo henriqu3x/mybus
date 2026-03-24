@@ -174,8 +174,14 @@ class _RoutePlannerScreenState extends State<RoutePlannerScreen> {
             children: [
               Consumer<BusProvider>(
                 builder: (context, provider, child) {
-                  if (provider.logradouros.isEmpty && !provider.isGraphBuilding) {
+                  if (provider.isLoading && provider.logradouros.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (!provider.isLoading &&
+                      provider.error != null &&
+                      provider.logradouros.isEmpty) {
+                    return Center(child: Text(provider.error!));
                   }
 
                   if (provider.isGraphBuilding) {

@@ -584,7 +584,15 @@ class _LineDetailScreenState extends State<LineDetailScreen>
     return FutureBuilder<ItinerarioCompleto>(
       future: _itineraryFuture, 
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Erro ao carregar itinerário'));
+        }
+        if (!snapshot.hasData) {
+          return const Center(child: Text('Nenhum itinerário encontrado'));
+        }
         
         final itinerario = snapshot.data!;
         
