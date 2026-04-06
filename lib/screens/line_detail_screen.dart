@@ -26,6 +26,8 @@ class LineDetailScreen extends StatefulWidget {
 
 class _LineDetailScreenState extends State<LineDetailScreen>
     with SingleTickerProviderStateMixin {
+  static const String _mapHtmlBaseUrl =
+      'https://appassets.androidplatform.net/';
   late TabController _tabController;
   late WebViewController _webControllerIda;
   late WebViewController _webControllerVolta;
@@ -832,7 +834,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
 
   void _loadHtmlContent(List<List<double>> route, String direction, WebViewController controller) {
     final html = _buildMapHtml(route, direction);
-    controller.loadHtmlString(html);
+    controller.loadHtmlString(html, baseUrl: _mapHtmlBaseUrl);
   }
 
   String _buildMapHtml(List<List<double>> route, String direction) {
@@ -845,6 +847,7 @@ class _LineDetailScreenState extends State<LineDetailScreen>
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="origin">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@8.2.0/ol.css" />
   <script src="https://cdn.jsdelivr.net/npm/ol@8.2.0/dist/ol.js"></script>
   <style>

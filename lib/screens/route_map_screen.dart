@@ -23,6 +23,8 @@ class RouteMapScreen extends StatefulWidget {
 }
 
 class _RouteMapScreenState extends State<RouteMapScreen> {
+  static const String _mapHtmlBaseUrl =
+      'https://appassets.androidplatform.net/';
   // Inicializamos com late, mas vamos usar o construtor padrão
   late final WebViewController _controller;
   final KmlService _kmlService = KmlService();
@@ -373,6 +375,7 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="referrer" content="origin">
         <title>OpenLayers Map</title>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
         <style>
@@ -598,7 +601,10 @@ class _RouteMapScreenState extends State<RouteMapScreen> {
     ''';
 
     // Carrega o conteúdo HTML no WebView
-    _controller.loadHtmlString(htmlContent).then((_) {
+    _controller.loadHtmlString(
+      htmlContent,
+      baseUrl: _mapHtmlBaseUrl,
+    ).then((_) {
       // On Web, we don't have a NavigationDelegate, so we assume load finishes quickly
       // or simply hide the spinner after the string is loaded.
       if (kIsWeb && mounted) {

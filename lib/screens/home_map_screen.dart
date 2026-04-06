@@ -28,6 +28,8 @@ class HomeMapScreen extends StatefulWidget {
 }
 
 class _HomeMapScreenState extends State<HomeMapScreen> {
+  static const String _mapHtmlBaseUrl =
+      'https://appassets.androidplatform.net/';
   late final WebViewController _controller;
   final KmlService _kmlService = KmlService();
   bool _isLoading = true;
@@ -276,6 +278,7 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta name="referrer" content="origin">
         <style>body, html, #map { margin: 0; padding: 0; height: 100%; width: 100%; }</style>
         <script src="https://cdn.jsdelivr.net/npm/ol@v8.2.0/dist/ol.js"></script>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v8.2.0/ol.css">
@@ -388,7 +391,10 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
       </html>
     ''';
 
-    _controller.loadHtmlString(htmlContent).then((_) {
+    _controller.loadHtmlString(
+      htmlContent,
+      baseUrl: _mapHtmlBaseUrl,
+    ).then((_) {
       if (kIsWeb && mounted) setState(() => _isLoading = false);
     });
   }
