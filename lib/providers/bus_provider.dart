@@ -248,7 +248,11 @@ class BusProvider with ChangeNotifier {
     }
   }
 
-  Future<List<List<GraphEdge>>> findRoutes(int startLogId, int endLogId) async {
+  Future<List<List<GraphEdge>>> findRoutes(
+    int startLogId,
+    int endLogId, {
+    Set<String>? allowedFirstLineCodes,
+  }) async {
     final List<List<GraphEdge>> foundRoutes = [];
     if (_graph == null) return foundRoutes;
 
@@ -263,6 +267,7 @@ class BusProvider with ChangeNotifier {
         endLogId,
         initialWaitTimes,
         penalizedLines: penalizedLines,
+        allowedFirstLineCodes: allowedFirstLineCodes,
       );
 
       if (route != null) {
@@ -292,6 +297,7 @@ class BusProvider with ChangeNotifier {
     int endLogId,
     Map<String, int> initialWaitTimes, {
     Set<String>? penalizedLines,
+    Set<String>? allowedFirstLineCodes,
   }) async {
     final Set<String> excludedLines = {};
     int attempts = 0;
@@ -309,6 +315,7 @@ class BusProvider with ChangeNotifier {
         initialWaitTimes: initialWaitTimes,
         excludedLines: excludedLines,
         penalizedLines: penalizedLines,
+        allowedInitialLineCodes: allowedFirstLineCodes,
       );
 
       if (route == null || route.isEmpty) {

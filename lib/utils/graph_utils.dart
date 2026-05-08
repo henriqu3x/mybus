@@ -160,6 +160,7 @@ class TransportGraph {
     Map<String, int>? initialWaitTimes,
     Set<String>? excludedLines,
     Set<String>? penalizedLines,
+    Set<String>? allowedInitialLineCodes,
   }) {
     final Map<String, GraphEdge> previousEdge = {};
     // Key: State, Value: Previous State Key
@@ -216,6 +217,11 @@ class TransportGraph {
       for (var edge in neighbors) {
         if (excludedLines != null && excludedLines.contains(edge.lineName))
           continue;
+        if (current.nodeId == startId &&
+            allowedInitialLineCodes != null &&
+            !_lineCodeMatches(edge.lineName, allowedInitialLineCodes)) {
+          continue;
+        }
 
         double penalty = 0;
 
@@ -293,6 +299,19 @@ class TransportGraph {
   /// Terminals are identified by the word "Terminal" in their name.
   bool _isTerminal(String nodeName) {
     return nodeName.toLowerCase().contains('terminal');
+  }
+
+  bool _lineCodeMatches(String lineName, Set<String> allowedCodes) {
+    final match = RegExp(r'^(\d+)').firstMatch(lineName.trim());
+    if (match == null) return false;
+
+    final lineNumber = int.tryParse(match.group(1)!);
+    if (lineNumber == null) return false;
+
+    return allowedCodes.any((code) {
+      final allowedNumber = int.tryParse(code.trim());
+      return allowedNumber != null && allowedNumber == lineNumber;
+    });
   }
 }
 

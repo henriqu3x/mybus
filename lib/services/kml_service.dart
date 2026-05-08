@@ -255,6 +255,47 @@ class KmlService {
     return result;
   }
 
+  /// Retorna paradas dentro de um raio em metros a partir de uma coordenada.
+  Future<List<StopInfo>> findStopsNearLocation(
+    double latitude,
+    double longitude, {
+    double radiusMeters = 200,
+  }) async {
+    final stops = await loadStopsMetadata();
+    final nearby = stops.where((stop) {
+      final distance = _haversineDistance(
+        latitude,
+        longitude,
+        stop.lat,
+        stop.lon,
+      );
+      return distance <= radiusMeters;
+    }).toList();
+
+    nearby.sort((a, b) {
+      final aDistance = _haversineDistance(latitude, longitude, a.lat, a.lon);
+      final bDistance = _haversineDistance(latitude, longitude, b.lat, b.lon);
+      return aDistance.compareTo(bDistance);
+    });
+
+    return nearby;
+  }
+
+  /// Retorna os IDs de logradouro da API associados a uma lista de paradas KML.
+  Future<List<int>> getApiIdsForStopIds(Iterable<int> stopIds) async {
+    await _loadLogradouroLookup();
+    final targetIds = stopIds.toSet();
+    final apiIds = <int>[];
+
+    for (final entry in _logradouroLookup.entries) {
+      if (entry.value.any(targetIds.contains)) {
+        apiIds.add(entry.key);
+      }
+    }
+
+    return apiIds;
+  }
+
   /// Carrega arquivo `assets/logradouros_normalizados.json` e mapeia nomes normalizados para IDs da API
   Future<void> _loadNormalizadosMapping() async {
     if (_normalizadosLoaded) return;
@@ -357,6 +398,24 @@ class KmlService {
         )
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  double _haversineDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadiusMeters = 6371000.0;
+    final dLat = (lat2 - lat1) * pi / 180;
+    final dLon = (lon2 - lon1) * pi / 180;
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * pi / 180) *
+            cos(lat2 * pi / 180) *
+            sin(dLon / 2) *
+            sin(dLon / 2);
+    final c = 2 * atan2(sqrt(a), sqrt(1 - a));
+    return earthRadiusMeters * c;
   }
 
   /// Encontra o ponto mais próximo em uma rota de coordenadas

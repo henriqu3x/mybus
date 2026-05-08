@@ -13,6 +13,7 @@ import 'lines_screen.dart';
 import 'stop_detail_screen.dart';
 import 'real_time_selection_screen.dart';
 import 'real_time_travel_screen.dart';
+import 'nearby_lines_screen.dart';
 import 'terms_screen.dart';
 import 'privacy_policy_screen.dart';
 import '../services/persistence_service.dart';
@@ -261,6 +262,17 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => StopDetailScreen(stop: stop)),
+    );
+  }
+
+  void _openNearbyLines() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => NearbyLinesScreen(
+          initialPosition: _userPosition,
+        ),
+      ),
     );
   }
 
@@ -560,17 +572,31 @@ class _HomeMapScreenState extends State<HomeMapScreen> {
           if (_isLoading) const Center(child: CircularProgressIndicator()),
           Positioned(
             right: 16,
-            bottom: _hasActiveTrip
-                ? 16
-                : 16, // Adjust if trip button is present
-            child: FloatingActionButton(
-              heroTag: 'centerUser',
-              onPressed: _centerMapOnUser,
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              child: Icon(
-                Icons.my_location,
-                color: Theme.of(context).colorScheme.primary,
-              ),
+            bottom: _hasActiveTrip ? 88 : 16,
+            child: Row(
+              children: [
+                FloatingActionButton(
+                  heroTag: 'nearbyLines',
+                  tooltip: 'Linhas perto de voce',
+                  onPressed: _openNearbyLines,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  child: Icon(
+                    Icons.near_me,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                FloatingActionButton(
+                  heroTag: 'centerUser',
+                  tooltip: 'Centralizar em voce',
+                  onPressed: _centerMapOnUser,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  child: Icon(
+                    Icons.my_location,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
