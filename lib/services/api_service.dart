@@ -11,12 +11,14 @@ import '../models/logradouro.dart';
 class ApiService {
   static const String baseUrl = 'http://gistapis.etufor.ce.gov.br:8081/api';
   static const Duration _requestTimeout = Duration(seconds: 10);
+  static const Duration _scheduleCacheMaxAge = Duration(minutes: 30);
 
   // Simple in-memory cache
   final Map<String, dynamic> _cache = {};
+  final Map<String, _TimedCacheEntry> _scheduleCache = {};
 
-  Future<dynamic> _getWithCache(String endpoint) async {
-    if (_cache.containsKey(endpoint)) {
+  Future<dynamic> _getWithCache(String endpoint, {bool useCache = true}) async {
+    if (useCache && _cache.containsKey(endpoint)) {
       return _cache[endpoint];
     }
 
@@ -27,7 +29,9 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        _cache[endpoint] = data;
+        if (useCache) {
+          _cache[endpoint] = data;
+        }
         return data;
       }
 
@@ -53,7 +57,21 @@ class ApiService {
 
   Future<List<HorarioPosto>> getHorarios(int idLinha, String data) async {
     // data format: YYYYMMDD
-    final body = await _getWithCache('/horarios/$idLinha?data=$data');
+    final endpoint = '/horarios/$idLinha?data=$data';
+    final cached = _scheduleCache[endpoint];
+    final now = DateTime.now();
+
+    if (cached != null &&
+        now.difference(cached.savedAt) <= _scheduleCacheMaxAge) {
+      return _parseHorarios(cached.data);
+    }
+
+    final body = await _getWithCache(endpoint, useCache: false);
+    _scheduleCache[endpoint] = _TimedCacheEntry(body, now);
+    return _parseHorarios(body);
+  }
+
+  List<HorarioPosto> _parseHorarios(dynamic body) {
     return (body as List)
         .map((dynamic item) => HorarioPosto.fromJson(item))
         .toList();
@@ -70,4 +88,11 @@ class ApiService {
     final body = await _getWithCache('/LinhasDologradouro/$idLogradouro');
     return (body as List).map((dynamic item) => Linha.fromJson(item)).toList();
   }
+}
+
+class _TimedCacheEntry {
+  final dynamic data;
+  final DateTime savedAt;
+
+  _TimedCacheEntry(this.data, this.savedAt);
 }

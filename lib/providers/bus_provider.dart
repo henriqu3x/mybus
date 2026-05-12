@@ -23,6 +23,7 @@ class BusProvider with ChangeNotifier {
   final Map<int, ItinerarioCompleto> _itinerarioCache = {};
   TransportGraph? _graph;
   bool _isGraphBuilding = false;
+  DateTime? _graphBuiltAt;
 
   List<Linha> get linhas => _filteredLinhas;
   List<Logradouro> get logradouros => _logradouros;
@@ -139,10 +140,16 @@ class BusProvider with ChangeNotifier {
 
   Future<void> buildGraph({bool forceRebuild = false}) async {
     if (_isGraphBuilding) return;
-    if (_graph != null && !forceRebuild) return;
+    if (_graph != null && !forceRebuild && _isInMemoryGraphFresh()) {
+      return;
+    }
 
     if (forceRebuild) {
       _graph = null;
+      _graphBuiltAt = null;
+    } else if (_graph != null) {
+      _graph = null;
+      _graphBuiltAt = null;
     }
 
     _isGraphBuilding = true;
@@ -154,6 +161,8 @@ class BusProvider with ChangeNotifier {
         final cachedGraph = await _graphCacheService.loadGraphIfFresh();
         if (cachedGraph != null) {
           _graph = cachedGraph;
+          _graphBuiltAt =
+              await _graphCacheService.getCacheBuiltAt() ?? DateTime.now();
           return;
         }
       } else {
@@ -163,10 +172,6 @@ class BusProvider with ChangeNotifier {
       if (_linhas.isEmpty) {
         await fetchLinhas();
       }
-
-      final now = DateTime.now();
-      final dateStr =
-          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 
       List<Map<String, dynamic>> allItineraries = [];
       int failedLines = 0;
@@ -181,31 +186,18 @@ class BusProvider with ChangeNotifier {
         await Future.wait(
           batch.map((linha) async {
             try {
-              bool isActive = false;
-              try {
-                final horarios = await getHorarios(linha.numero, dateStr);
-                if (horarios.isNotEmpty) isActive = true;
-              } catch (e) {
-                failedLines++;
-                debugPrint(
-                  'Erro ao carregar horarios da linha ${linha.numero}: $e',
-                );
+              final itinerarioCompleto = await getItinerario(linha.numero);
+              if (itinerarioCompleto.ida != null) {
+                allItineraries.add({
+                  'line': '${linha.numeroNome.trim()}_IDA',
+                  'itinerario': itinerarioCompleto.ida,
+                });
               }
-
-              if (isActive) {
-                final itinerarioCompleto = await getItinerario(linha.numero);
-                if (itinerarioCompleto.ida != null) {
-                  allItineraries.add({
-                    'line': '${linha.numeroNome.trim()}_IDA',
-                    'itinerario': itinerarioCompleto.ida,
-                  });
-                }
-                if (itinerarioCompleto.volta != null) {
-                  allItineraries.add({
-                    'line': '${linha.numeroNome.trim()}_VOLTA',
-                    'itinerario': itinerarioCompleto.volta,
-                  });
-                }
+              if (itinerarioCompleto.volta != null) {
+                allItineraries.add({
+                  'line': '${linha.numeroNome.trim()}_VOLTA',
+                  'itinerario': itinerarioCompleto.volta,
+                });
               }
             } catch (e) {
               failedLines++;
@@ -222,13 +214,14 @@ class BusProvider with ChangeNotifier {
         _setError(
           failedLines > 0
               ? 'Nao foi possivel carregar dados suficientes para planejar a viagem.'
-              : 'Nenhum itinerario ativo foi encontrado para montar a rede de transporte.',
+              : 'Nenhum itinerario foi encontrado para montar a rede de transporte.',
         );
         return;
       }
 
       _graph = TransportGraph();
       _graph!.buildFromItineraries(allItineraries);
+      _graphBuiltAt = DateTime.now();
       _error = null;
 
       try {
@@ -238,6 +231,7 @@ class BusProvider with ChangeNotifier {
       }
     } catch (e) {
       _graph = null;
+      _graphBuiltAt = null;
       _setError(
         'Erro ao construir a rede de transporte. Tente novamente em instantes.',
         e,
@@ -248,12 +242,23 @@ class BusProvider with ChangeNotifier {
     }
   }
 
+  bool _isInMemoryGraphFresh() {
+    final builtAt = _graphBuiltAt;
+    if (builtAt == null) return false;
+
+    final now = DateTime.now();
+    return builtAt.year == now.year &&
+        builtAt.month == now.month &&
+        builtAt.day == now.day;
+  }
+
   Future<List<List<GraphEdge>>> findRoutes(
     int startLogId,
     int endLogId, {
     Set<String>? allowedFirstLineCodes,
   }) async {
     final List<List<GraphEdge>> foundRoutes = [];
+    await buildGraph();
     if (_graph == null) return foundRoutes;
 
     final Map<String, int> initialWaitTimes = await _calculateInitialWaitTimes(
@@ -301,7 +306,7 @@ class BusProvider with ChangeNotifier {
   }) async {
     final Set<String> excludedLines = {};
     int attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 20;
 
     final today = DateTime.now();
     final dateStr =
@@ -324,6 +329,7 @@ class BusProvider with ChangeNotifier {
 
       final invalidLine = await _validateRouteSegments(
         route,
+        startLogId,
         currentMinutes,
         dateStr,
       );
@@ -420,6 +426,7 @@ class BusProvider with ChangeNotifier {
 
   Future<String?> _validateRouteSegments(
     List<GraphEdge> route,
+    int startLogId,
     int startMinutes,
     String dateStr,
   ) async {
@@ -439,44 +446,49 @@ class BusProvider with ChangeNotifier {
 
         int lineNum = int.parse(match.group(1)!);
 
+        final boardingStopId = i == 0
+            ? startLogId
+            : route[i - 1].destination.id;
+
+        var itinerarioCompleto = await getItinerario(lineNum);
+        var itinerario = edge.lineName.endsWith('_VOLTA')
+            ? itinerarioCompleto.volta
+            : itinerarioCompleto.ida;
+
+        if (itinerario == null) {
+          return edge.lineName;
+        }
+
+        double dist = 0;
+        bool found = false;
+        for (var p in itinerario.pontos) {
+          if (p.logId == boardingStopId) {
+            found = true;
+            break;
+          }
+          dist += p.distanciaPercorrida;
+        }
+
+        if (!found) {
+          return edge.lineName;
+        }
+
+        final waitMinutes = await _calculateNextBusWaitTime(
+          lineNum,
+          dateStr,
+          itinerario.pontoInicial,
+          dist,
+          currentMinutes,
+        );
+
+        if (waitMinutes == null) {
+          return edge.lineName;
+        }
+
         if (i > 0) {
-          int boardingStopId = route[i - 1].destination.id;
-
-          var itinerarioCompleto = await getItinerario(lineNum);
-          var itinerario = edge.lineName.endsWith('_VOLTA')
-              ? itinerarioCompleto.volta
-              : itinerarioCompleto.ida;
-
-          if (itinerario == null) {
+          if (waitMinutes > 45) {
             return edge.lineName;
           }
-
-          double dist = 0;
-          bool found = false;
-          for (var p in itinerario.pontos) {
-            if (p.logId == boardingStopId) {
-              found = true;
-              break;
-            }
-            dist += p.distanciaPercorrida;
-          }
-
-          if (!found) {
-            return edge.lineName;
-          }
-
-          final waitMinutes = await _calculateNextBusWaitTime(
-            lineNum,
-            dateStr,
-            itinerario.pontoInicial,
-            dist,
-            currentMinutes,
-          );
-
-          if (waitMinutes == null || waitMinutes > 45) {
-            return edge.lineName;
-          }
-
           currentMinutes += waitMinutes;
         }
       }

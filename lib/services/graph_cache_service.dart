@@ -8,13 +8,34 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/graph_utils.dart';
 
 class GraphCacheService {
-  static const String _cacheDateKey = 'transport_graph_cache_date';
-  static const String _cacheFileName = 'transport_graph_cache.json';
+  static const String _cacheDateKey = 'transport_graph_cache_date_v2';
+  static const String _cacheBuiltAtKey = 'transport_graph_cache_built_at_v2';
+  static const String _cacheFileName = 'transport_graph_cache_v2.json';
 
   Future<bool> isCacheValidForToday() async {
     final prefs = await SharedPreferences.getInstance();
     final savedDate = prefs.getString(_cacheDateKey);
     return savedDate != null && savedDate == _todayStamp();
+  }
+
+  Future<DateTime?> getCacheBuiltAt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDate = prefs.getString(_cacheDateKey);
+    final builtAtText = prefs.getString(_cacheBuiltAtKey);
+    if (savedDate == null || savedDate != _todayStamp()) {
+      return null;
+    }
+
+    if (builtAtText == null) {
+      return null;
+    }
+
+    final builtAt = DateTime.tryParse(builtAtText);
+    if (builtAt == null) {
+      return null;
+    }
+
+    return builtAt;
   }
 
   Future<TransportGraph?> loadGraphIfFresh() async {
@@ -50,6 +71,7 @@ class GraphCacheService {
     try {
       await file.writeAsString(jsonEncode(graph.toJson()), flush: true);
       await prefs.setString(_cacheDateKey, _todayStamp());
+      await prefs.setString(_cacheBuiltAtKey, DateTime.now().toIso8601String());
     } catch (error) {
       debugPrint('Falha ao salvar cache do grafo: $error');
       rethrow;
@@ -59,6 +81,7 @@ class GraphCacheService {
   Future<void> clearInvalidCache() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_cacheDateKey);
+    await prefs.remove(_cacheBuiltAtKey);
 
     try {
       final file = await _getCacheFile();
