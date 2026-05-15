@@ -163,6 +163,7 @@ class BusProvider with ChangeNotifier {
           _graph = cachedGraph;
           _graphBuiltAt =
               await _graphCacheService.getCacheBuiltAt() ?? DateTime.now();
+          _warmGraphRuntimeCachesInBackground();
           return;
         }
       } else {
@@ -172,6 +173,10 @@ class BusProvider with ChangeNotifier {
       if (_linhas.isEmpty) {
         await fetchLinhas();
       }
+
+      final now = DateTime.now();
+      final dateStr =
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
 
       List<Map<String, dynamic>> allItineraries = [];
       int failedLines = 0;
@@ -186,6 +191,19 @@ class BusProvider with ChangeNotifier {
         await Future.wait(
           batch.map((linha) async {
             try {
+              bool isActive = false;
+              try {
+                final horarios = await getHorarios(linha.numero, dateStr);
+                isActive = horarios.isNotEmpty;
+              } catch (e) {
+                failedLines++;
+                debugPrint(
+                  'Erro ao carregar horarios da linha ${linha.numero}: $e',
+                );
+              }
+
+              if (!isActive) return;
+
               final itinerarioCompleto = await getItinerario(linha.numero);
               if (itinerarioCompleto.ida != null) {
                 allItineraries.add({
@@ -214,7 +232,7 @@ class BusProvider with ChangeNotifier {
         _setError(
           failedLines > 0
               ? 'Nao foi possivel carregar dados suficientes para planejar a viagem.'
-              : 'Nenhum itinerario foi encontrado para montar a rede de transporte.',
+              : 'Nenhum itinerario ativo foi encontrado para montar a rede de transporte.',
         );
         return;
       }
@@ -247,9 +265,71 @@ class BusProvider with ChangeNotifier {
     if (builtAt == null) return false;
 
     final now = DateTime.now();
-    return builtAt.year == now.year &&
+    final sameDay = builtAt.year == now.year &&
         builtAt.month == now.month &&
         builtAt.day == now.day;
+    return sameDay &&
+        now.difference(builtAt) <= GraphCacheService.graphCacheMaxAge;
+  }
+
+  Future<void> _warmGraphRuntimeCaches() async {
+    if (_graph == null) return;
+
+    if (_linhas.isEmpty) {
+      await fetchLinhas();
+    }
+
+    final now = DateTime.now();
+    final dateStr =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final lineNumbers = _extractGraphLineNumbers();
+
+    const batchSize = 5;
+    for (var i = 0; i < lineNumbers.length; i += batchSize) {
+      final end = (i + batchSize < lineNumbers.length)
+          ? i + batchSize
+          : lineNumbers.length;
+      final batch = lineNumbers.sublist(i, end);
+
+      await Future.wait(
+        batch.map((lineNumber) async {
+          try {
+            await getHorarios(lineNumber, dateStr);
+            await getItinerario(lineNumber);
+          } catch (e) {
+            debugPrint(
+              'Nao foi possivel aquecer cache da linha $lineNumber: $e',
+            );
+          }
+        }),
+      );
+    }
+  }
+
+  List<int> _extractGraphLineNumbers() {
+    final lineNumbers = <int>{};
+    final graph = _graph;
+    if (graph == null) return const <int>[];
+
+    for (final edges in graph.adjacencyList.values) {
+      for (final edge in edges) {
+        final match = RegExp(r'^(\d+)').firstMatch(edge.lineName.trim());
+        if (match == null) continue;
+
+        final lineNumber = int.tryParse(match.group(1)!);
+        if (lineNumber != null) {
+          lineNumbers.add(lineNumber);
+        }
+      }
+    }
+
+    return lineNumbers.toList();
+  }
+
+  void _warmGraphRuntimeCachesInBackground() {
+    Future<void>(() async {
+      await _warmGraphRuntimeCaches();
+    });
   }
 
   Future<List<List<GraphEdge>>> findRoutes(
@@ -306,7 +386,7 @@ class BusProvider with ChangeNotifier {
   }) async {
     final Set<String> excludedLines = {};
     int attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 5;
 
     final today = DateTime.now();
     final dateStr =
@@ -352,73 +432,56 @@ class BusProvider with ChangeNotifier {
         '${today.year}${today.month.toString().padLeft(2, '0')}${today.day.toString().padLeft(2, '0')}';
     final currentMinutes = TimeOfDay.now().hour * 60 + TimeOfDay.now().minute;
 
-    for (var linha in _linhas) {
-      if (!_itinerarioCache.containsKey(linha.numero)) continue;
+    final neighbors = _graph?.adjacencyList[startLogId] ?? const <GraphEdge>[];
+    if (neighbors.isEmpty) return initialWaitTimes;
 
-      final itinerarioCompleto = _itinerarioCache[linha.numero]!;
+    final byNumber = <int, Linha>{for (final l in _linhas) l.numero: l};
+    final candidateLineNames = neighbors
+        .map((e) => e.lineName)
+        .toSet();
 
-      if (itinerarioCompleto.ida != null) {
-        double dist = 0;
-        bool found = false;
-        for (var p in itinerarioCompleto.ida!.pontos) {
-          if (p.logId == startLogId) {
-            found = true;
-            break;
-          }
-          dist += p.distanciaPercorrida;
+    for (final lineName in candidateLineNames) {
+      final clean = lineName
+          .replaceAll('_IDA', '')
+          .replaceAll('_VOLTA', '')
+          .trim();
+      final match = RegExp(r'^(\d+)').firstMatch(clean);
+      if (match == null) continue;
+
+      final lineNum = int.tryParse(match.group(1)!);
+      if (lineNum == null) continue;
+
+      final linha = byNumber[lineNum];
+      final itinerarioCompleto = _itinerarioCache[lineNum];
+      if (linha == null || itinerarioCompleto == null) continue;
+
+      final itinerario = lineName.endsWith('_VOLTA')
+          ? itinerarioCompleto.volta
+          : itinerarioCompleto.ida;
+      if (itinerario == null) continue;
+
+      double dist = 0;
+      bool found = false;
+      for (var p in itinerario.pontos) {
+        if (p.logId == startLogId) {
+          found = true;
+          break;
         }
-
-        if (found) {
-          final wait = await _calculateNextBusWaitTime(
-            linha.numero,
-            dateStr,
-            itinerarioCompleto.ida!.pontoInicial,
-            dist,
-            currentMinutes,
-          );
-          final key = '${linha.numeroNome.trim()}_IDA';
-          if (wait != null) {
-            if (wait > 45) {
-              initialWaitTimes[key] = 999999;
-            } else {
-              initialWaitTimes[key] = wait;
-            }
-          } else {
-            initialWaitTimes[key] = 999999;
-          }
-        }
+        dist += p.distanciaPercorrida;
       }
+      if (!found) continue;
 
-      if (itinerarioCompleto.volta != null) {
-        double dist = 0;
-        bool found = false;
-        for (var p in itinerarioCompleto.volta!.pontos) {
-          if (p.logId == startLogId) {
-            found = true;
-            break;
-          }
-          dist += p.distanciaPercorrida;
-        }
-
-        if (found) {
-          final wait = await _calculateNextBusWaitTime(
-            linha.numero,
-            dateStr,
-            itinerarioCompleto.volta!.pontoInicial,
-            dist,
-            currentMinutes,
-          );
-          final key = '${linha.numeroNome.trim()}_VOLTA';
-          if (wait != null) {
-            if (wait > 45) {
-              initialWaitTimes[key] = 999999;
-            } else {
-              initialWaitTimes[key] = wait;
-            }
-          } else {
-            initialWaitTimes[key] = 999999;
-          }
-        }
+      final wait = await _calculateNextBusWaitTime(
+        lineNum,
+        dateStr,
+        itinerario.pontoInicial,
+        dist,
+        currentMinutes,
+      );
+      if (wait != null) {
+        initialWaitTimes[lineName] = wait > 45 ? 999999 : wait;
+      } else {
+        initialWaitTimes[lineName] = 999999;
       }
     }
     return initialWaitTimes;

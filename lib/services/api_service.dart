@@ -11,7 +11,7 @@ import '../models/logradouro.dart';
 class ApiService {
   static const String baseUrl = 'http://gistapis.etufor.ce.gov.br:8081/api';
   static const Duration _requestTimeout = Duration(seconds: 10);
-  static const Duration _scheduleCacheMaxAge = Duration(minutes: 30);
+  static const Duration _scheduleCacheMaxAge = Duration(hours: 1);
 
   // Simple in-memory cache
   final Map<String, dynamic> _cache = {};

@@ -11,6 +11,14 @@ class GraphCacheService {
   static const String _cacheDateKey = 'transport_graph_cache_date_v2';
   static const String _cacheBuiltAtKey = 'transport_graph_cache_built_at_v2';
   static const String _cacheFileName = 'transport_graph_cache_v2.json';
+  static const Duration graphCacheMaxAge = Duration(hours: 1);
+
+  Future<bool> isCacheFresh() async {
+    final builtAt = await getCacheBuiltAt();
+    if (builtAt == null) return false;
+
+    return DateTime.now().difference(builtAt) <= graphCacheMaxAge;
+  }
 
   Future<bool> isCacheValidForToday() async {
     final prefs = await SharedPreferences.getInstance();
@@ -39,7 +47,7 @@ class GraphCacheService {
   }
 
   Future<TransportGraph?> loadGraphIfFresh() async {
-    if (!await isCacheValidForToday()) {
+    if (!await isCacheFresh()) {
       await clearInvalidCache();
       return null;
     }
