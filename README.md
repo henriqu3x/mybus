@@ -88,11 +88,11 @@ Mesmo sem conexão, o aplicativo mantém parcialmente algumas funcionalidades:
 
 ### Mapa de Paradas
 
-![Mapa](./screenshots/home.jpg)
+<img src="./screenshots/home.jpg" width="250"/>
 
 ### Itinerário da Linha
 
-![Itinerário](./screenshots/itinerario.jpg)
+<img src="./screenshots/itinerario.jpg" width="250"/>
 
 ### Lista de Linhas
 
@@ -100,7 +100,7 @@ Mesmo sem conexão, o aplicativo mantém parcialmente algumas funcionalidades:
 
 ### Linhas Próximas
 
-![Linhas Próximas](./screenshots/perto.jpg)
+<img src="./screenshots/perto.jpg" width="250"/>
 
 ---
 
