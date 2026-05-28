@@ -96,7 +96,7 @@ Mesmo sem conexão, o aplicativo mantém parcialmente algumas funcionalidades:
 
 ### Lista de Linhas
 
-![Linhas](./screenshots/linhas.jpg)
+<img src="./screenshots/linhas.jpg" width="250"/>
 
 ### Linhas Próximas
 
